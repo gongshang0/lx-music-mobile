@@ -26,12 +26,13 @@ jobs:
           # 自动在 app/ 目录下生成临时签名证书，密码为 Matian123321
           keytool -genkey -v -keystore app/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias mykey -storepass Matian123321 -keypass Matian123321 -dname "CN=Android, OU=Android, O=Android, L=Earth, ST=Earth, C=US"
           
-          # 使用证书编译打包
+          # 使用证书编译打包，并限制内存防止 OOM 崩溃
           ./gradlew assembleRelease \
             -PMYAPP_UPLOAD_STORE_FILE='release.jks' \
             -PMYAPP_UPLOAD_KEY_ALIAS='mykey' \
             -PMYAPP_UPLOAD_STORE_PASSWORD='Matian123321' \
-            -PMYAPP_UPLOAD_KEY_PASSWORD='Matian123321'
+            -PMYAPP_UPLOAD_KEY_PASSWORD='Matian123321' \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
             
           # 清理临时证书文件
           rm -f app/release.jks
