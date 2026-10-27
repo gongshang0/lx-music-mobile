@@ -23,10 +23,10 @@ jobs:
         shell: bash
         run: |
           cd android
-          # 自动在云端生成临时签名证书，密码已更新
-          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias mykey -storepass Matian123321 -keypass Matian123321 -dname "CN=Android, OU=Android, O=Android, L=Earth, ST=Earth, C=US"
+          # 自动在 app/ 目录下生成临时签名证书，密码为 Matian123321
+          keytool -genkey -v -keystore app/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias mykey -storepass Matian123321 -keypass Matian123321 -dname "CN=Android, OU=Android, O=Android, L=Earth, ST=Earth, C=US"
           
-          # 使用自动生成的证书编译打包
+          # 使用证书编译打包
           ./gradlew assembleRelease \
             -PMYAPP_UPLOAD_STORE_FILE='release.jks' \
             -PMYAPP_UPLOAD_KEY_ALIAS='mykey' \
@@ -34,7 +34,7 @@ jobs:
             -PMYAPP_UPLOAD_KEY_PASSWORD='Matian123321'
             
           # 清理临时证书文件
-          rm -f release.jks
+          rm -f app/release.jks
 
       # Push tag to GitHub if package.json version's tag is not tagged
       - name: Get package version
