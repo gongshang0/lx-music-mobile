@@ -14,7 +14,6 @@ import {
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-// 本地存储 KEY 与 基础鉴权音源 URL
 const AUTH_CODE_KEY = '@lx_app_auth_token'
 const BASE_SOURCE_URL = 'https://lx123.gongshangss.dpdns.org/source.js'
 
@@ -29,33 +28,19 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
   const [inputToken, setInputToken] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
-  // 向 Cloudflare 鉴权音源接口发送验证请求
   const requestVerify = async (token: string): Promise<boolean> => {
     const cleanToken = token.trim()
     if (!cleanToken) return false
-
     const targetUrl = `${BASE_SOURCE_URL}?token=${encodeURIComponent(cleanToken)}`
 
     try {
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      })
-
-      // 接口正常返回 200 即视为验证通过
-      if (response.status === 200) {
-        return true
-      }
-      return false
+      const response = await fetch(targetUrl, { method: 'GET' })
+      return response.status === 200
     } catch (error) {
-      console.error('鉴权请求网络异常:', error)
       return false
     }
   }
 
-  // 验证成功后的处理逻辑
   const handleAuthPass = (token: string) => {
     const activeSourceUrl = `${BASE_SOURCE_URL}?token=${encodeURIComponent(token.trim())}`
     setIsAuthorized(true)
@@ -64,7 +49,6 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
     }
   }
 
-  // 应用启动时自动读取本地 AsyncStorage 里的授权码
   useEffect(() => {
     const initCheck = async () => {
       try {
@@ -78,9 +62,8 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
           }
         }
       } catch (e) {
-        console.error('读取本地授权状态失败:', e)
+        console.error(e)
       }
-      // 无授权码或校验失败，强制停留遮罩页
       setIsAuthorized(false)
       setLoading(false)
     }
@@ -88,7 +71,6 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
     initCheck()
   }, [])
 
-  // 用户点击“立即验证”提交
   const handleVerifySubmit = async () => {
     const token = inputToken.trim()
     if (!token) {
@@ -101,16 +83,9 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
     setVerifying(false)
 
     if (success) {
-      try {
-        // 将授权码保存至本地
-        await AsyncStorage.setItem(AUTH_CODE_KEY, token)
-      } catch (e) {
-        console.error('保存授权码失败:', e)
-      }
-      // 解除遮罩并载入音源
+      await AsyncStorage.setItem(AUTH_CODE_KEY, token)
       handleAuthPass(token)
     } else {
-      // 验证失败，弹窗提示并保持锁定
       Alert.alert(
         '激活失败',
         '授权码无效或已过 15 天有效期，请联系管理员获取最新授权码。',
@@ -119,11 +94,11 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
     }
   }
 
-  // 启动读取状态：显示加载动画
   if (loading) {
     return (
       <View style={styles.centerScreen}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
+        <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>正核验设备激活授权...</Text>
       </View>
     )
@@ -131,48 +106,49 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
 
   return (
     <View style={styles.flex1}>
-      {/* 渲染主应用界面 */}
       {children}
 
-      {/* 未授权时全屏门禁遮罩 */}
       {!isAuthorized && (
         <Modal visible transparent={false} animationType="fade" statusBarTranslucent>
-          <StatusBar barStyle="light-content" backgroundColor="#121212" />
+          <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.maskContainer}
           >
             <View style={styles.card}>
-              <View style={styles.iconCircle}>
-                <Text style={styles.lockIcon}>🔒</Text>
+              <View style={styles.iconBadge}>
+                <Text style={styles.badgeText}>⚡</Text>
               </View>
 
-              <Text style={styles.title}>应用激活门禁</Text>
-              <Text style={styles.subtitle}>请输入有效授权码激活应用</Text>
+              <Text style={styles.title}>设备激活中心</Text>
+              <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="请输入激活授权码"
-                placeholderTextColor="#666"
-                value={inputToken}
-                onChangeText={setInputToken}
-                autoCapitalize="none"
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="请输入激活授权码"
+                  placeholderTextColor="#4B5563"
+                  value={inputToken}
+                  onChangeText={setInputToken}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
 
               <TouchableOpacity
                 style={[styles.button, verifying && styles.buttonDisabled]}
                 onPress={handleVerifySubmit}
                 disabled={verifying}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 {verifying ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.buttonText}>立即激活</Text>
+                  <Text style={styles.buttonText}>验证并进入应用</Text>
                 )}
               </TouchableOpacity>
+
+              <Text style={styles.footerTip}>连接至 Cloudflare 高速安全鉴权节点</Text>
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -182,88 +158,107 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
 }
 
 const styles = StyleSheet.create({
-  flex1: {
-    flex: 1,
-  },
+  flex1: { flex: 1 },
   centerScreen: {
     flex: 1,
+    backgroundColor: '#0F1115',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
   },
   loadingText: {
-    color: '#888',
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 14,
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
   },
   maskContainer: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0F1115',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 24,
   },
   card: {
     width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    padding: 24,
+    maxWidth: 360,
+    backgroundColor: '#161922',
+    borderRadius: 24,
+    padding: 28,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#262B36',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
     elevation: 10,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#2c2c2c',
+  iconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1E2638',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#3B82F633',
   },
-  lockIcon: {
-    fontSize: 28,
-  },
+  badgeText: { fontSize: 24 },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#F9FAFB',
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#888',
+    fontSize: 13,
+    color: '#9CA3AF',
     marginBottom: 24,
     textAlign: 'center',
+    lineHeight: 18,
+  },
+  inputWrapper: {
+    width: '100%',
+    marginBottom: 18,
   },
   input: {
     width: '100%',
-    height: 48,
-    backgroundColor: '#2c2c2c',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    color: '#fff',
+    height: 52,
+    backgroundColor: '#0F1115',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    color: '#F9FAFB',
     fontSize: 15,
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#262B36',
   },
   button: {
     width: '100%',
-    height: 48,
-    backgroundColor: '#10B981',
-    borderRadius: 8,
+    height: 52,
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    backgroundColor: '#1D3B8A',
   },
   buttonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  footerTip: {
+    marginTop: 20,
+    fontSize: 11,
+    color: '#4B5563',
   },
 })
