@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { View, TouchableOpacity, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
@@ -13,6 +13,11 @@ import Text from '@/components/common/Text'
 import { type Position } from './ListMenu'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import Loading from '@/components/common/Loading'
+
+// 新增：引入导入歌单所需的工具和创建 API
+import { tipDialog } from '@/utils/tools'
+import { importPlaylistFromUrl } from '@/utils/playlistImporter'
+import { createUserList } from '@/core/list'
 
 type FlatListType = FlatListProps<LX.List.MyListInfo>
 
@@ -34,7 +39,6 @@ const ListItem = memo(({ item, index, activeId, onPress, onShowMenu }: {
   const handleShowMenu = () => {
     if (moreButtonRef.current?.measure) {
       moreButtonRef.current.measure((fx, fy, width, height, px, py) => {
-        // console.log(fx, fy, width, height, px, py)
         onShowMenu(item, index, { x: Math.ceil(px), y: Math.ceil(py), w: Math.ceil(width), h: Math.ceil(height) })
       })
     }
@@ -78,13 +82,48 @@ export default ({ onShowMenu }: {
   const activeListId = useActiveListId()
 
   const handleToggleList = (item: LX.List.MyListInfo) => {
-    // setVisiblePanel(false)
     global.app_event.changeLoveListVisible(false)
     requestAnimationFrame(() => {
       setActiveList(item.id)
     })
   }
 
+  // 新增：全平台歌单导入处理逻辑
+  const handleImportPlaylist = () => {
+    void tipDialog({
+      title: '🎵 导入外部歌单',
+      message: '支持粘贴 网易云、QQ音乐、酷狗、酷我、咪咕 的歌单链接或 ID：',
+      btnText: '一键解析导入',
+      bgClose: true,
+      isPrompt: true, // 启用输入框模式
+      placeholder: '在此粘贴歌单链接或 ID...',
+    }).then(async (inputText?: string) => {
+      if (!inputText || !inputText.trim()) return
+
+      try {
+        const playlistData = await importPlaylistFromUrl(inputText.trim())
+
+        if (playlistData && playlistData.list) {
+          await createUserList({
+            name: playlistData.name,
+            list: playlistData.list,
+          })
+
+          void tipDialog({
+            title: '导入成功 🎉',
+            message: `成功导入歌单《${playlistData.name}》\n共包含 ${playlistData.count} 首歌曲！`,
+            btnText: '查看歌单',
+          })
+        }
+      } catch (error: any) {
+        void tipDialog({
+          title: '导入失败',
+          message: error.message || '解析歌单超时或遇到错误',
+          btnText: '重新输入',
+        })
+      }
+    })
+  }
 
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     void saveListPosition(LIST_SCROLL_POSITION_KEY, nativeEvent.contentOffset.y)
@@ -116,21 +155,28 @@ export default ({ onShowMenu }: {
   }
 
   return (
-    <FlatList
-      ref={flatListRef}
-      onScroll={handleScroll}
-      style={styles.container}
-      data={allList}
-      maxToRenderPerBatch={9}
-      // updateCellsBatchingPeriod={80}
-      windowSize={9}
-      removeClippedSubviews={true}
-      initialNumToRender={18}
-      renderItem={renderItem}
-      keyExtractor={getkey}
-      // extraData={activeIndex}
-      getItemLayout={getItemLayout}
-    />
+    <View style={styles.container}>
+      {/* 新增：顶部导入歌单快捷操作栏 */}
+      <View style={styles.importBar}>
+        <TouchableOpacity style={styles.importBtn} onPress={handleImportPlaylist} activeOpacity={0.8}>
+          <Text style={styles.importBtnText}>+ 导入外部歌单</Text>
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        ref={flatListRef}
+        onScroll={handleScroll}
+        style={styles.flatList}
+        data={allList}
+        maxToRenderPerBatch={9}
+        windowSize={9}
+        removeClippedSubviews={true}
+        initialNumToRender={18}
+        renderItem={renderItem}
+        keyExtractor={getkey}
+        getItemLayout={getItemLayout}
+      />
+    </View>
   )
 }
 
@@ -140,22 +186,38 @@ const styles = createStyle({
     flexShrink: 1,
     flexGrow: 0,
   },
-  // listContainer: {
-  //   // borderBottomWidth: BorderWidths.normal2,
-  // },
-
+  flatList: {
+    flexShrink: 1,
+    flexGrow: 0,
+  },
+  // 新增：导入按钮栏样式
+  importBar: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  importBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   listItem: {
     height: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 5,
     paddingLeft: 5,
-    // borderBottomWidth: BorderWidths.normal,
   },
   listActiveIcon: {
-    // width: 18,
     marginLeft: 3,
-    // paddingRight: 5,
     textAlign: 'center',
   },
   loading: {
@@ -163,28 +225,15 @@ const styles = createStyle({
   },
   listName: {
     height: '100%',
-    // height: 46,
-    // paddingTop: 12,
-    // paddingBottom: 12,
     justifyContent: 'center',
     flexGrow: 1,
     flexShrink: 1,
     paddingLeft: 5,
-    // backgroundColor: 'rgba(0,0,0,0.1)',
   },
-  // listNameText: {
-  //   // height: 46,
-  //   fontSize: 14,
-  // },
   listMoreBtn: {
     height: '100%',
     width: 36,
-    // height: 46,
-    // paddingTop: 12,
-    // paddingBottom: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    // backgroundColor: 'rgba(0,0,0,0.1)',
   },
 })
-
