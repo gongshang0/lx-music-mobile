@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -13,62 +13,19 @@ import {
   Platform,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { verifyAndLoadAuth } from '@/app'
 
-const AUTH_CODE_KEY = '@lx_app_auth_token'
-const BASE_SOURCE_URL = 'https://lx123.gongshangss.dpdns.org/source.js'
+const AUTH_INFO_KEY = '@lx_app_auth_info'
 
-interface AppGuardProps {
-  children: React.ReactNode
-  onAuthSuccess?: (sourceUrl: string, token: string) => void
-}
-
-export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) => {
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false)
-  const [loading, setLoading] = useState<boolean>(true)
+export const AppGuardModal: React.FC = () => {
+  const [visible, setVisible] = useState<boolean>(!global.lx.isAuthorized)
   const [inputToken, setInputToken] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
-  const requestVerify = async (token: string): Promise<boolean> => {
-    const cleanToken = token.trim()
-    if (!cleanToken) return false
-    const targetUrl = `${BASE_SOURCE_URL}?token=${encodeURIComponent(cleanToken)}`
-
-    try {
-      const response = await fetch(targetUrl, { method: 'GET' })
-      return response.status === 200
-    } catch (error) {
-      return false
-    }
-  }
-
-  const handleAuthPass = (token: string) => {
-    const activeSourceUrl = `${BASE_SOURCE_URL}?token=${encodeURIComponent(token.trim())}`
-    setIsAuthorized(true)
-    if (onAuthSuccess) {
-      onAuthSuccess(activeSourceUrl, token.trim())
-    }
-  }
-
   useEffect(() => {
-    const initCheck = async () => {
-      try {
-        const savedToken = await AsyncStorage.getItem(AUTH_CODE_KEY)
-        if (savedToken) {
-          const isValid = await requestVerify(savedToken)
-          if (isValid) {
-            handleAuthPass(savedToken)
-            setLoading(false)
-            return
-          }
-        }
-      } catch (e) {
-        console.error(e)
-      }
-      setIsAuthorized(false)
-      setLoading(false)
+    if (global.lx.isAuthorized) {
+      setVisible(false)
     }
-
-    initCheck()
   }, [])
 
   const handleVerifySubmit = async () => {
@@ -79,98 +36,81 @@ export const AppGuard: React.FC<AppGuardProps> = ({ children, onAuthSuccess }) =
     }
 
     setVerifying(true)
-    const success = await requestVerify(token)
+    const authData = await verifyAndLoadAuth(token)
     setVerifying(false)
 
-    if (success) {
-      await AsyncStorage.setItem(AUTH_CODE_KEY, token)
-      handleAuthPass(token)
+    if (authData) {
+      await AsyncStorage.setItem(AUTH_INFO_KEY, JSON.stringify(authData))
+      global.lx.userPermissions = authData
+      global.lx.isAuthorized = true
+      setVisible(false) // 解除全屏遮罩进入主界面
+
+      Alert.alert(
+        '激活成功 🎉',
+        `授权卡密验证通过 (${authData.planType.toUpperCase()})\n下载权限：${
+          authData.allowDownload ? '已解锁' : '未开启 (仅限在线播放)'
+        }`
+      )
     } else {
       Alert.alert(
-        '激活失败',
-        '授权码无效或已过 15 天有效期，请联系管理员获取最新授权码。',
-        [{ text: '确定' }]
+        '激活失败 ❌',
+        '授权码无效或已过 15 天有效期，请联系管理员获取最新授权码。'
       )
     }
   }
 
-  if (loading) {
-    return (
-      <View style={styles.centerScreen}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loadingText}>正核验设备激活授权...</Text>
-      </View>
-    )
-  }
+  if (!visible) return null
 
   return (
-    <View style={styles.flex1}>
-      {children}
+    <Modal visible transparent={false} animationType="fade" statusBarTranslucent>
+      <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.maskContainer}
+      >
+        <View style={styles.card}>
+          <View style={styles.iconBadge}>
+            <Text style={styles.badgeText}>🔑</Text>
+          </View>
 
-      {!isAuthorized && (
-        <Modal visible transparent={false} animationType="fade" statusBarTranslucent>
-          <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.maskContainer}
+          <Text style={styles.title}>设备激活中心</Text>
+          <Text style={styles.subtitle}>请输入有效授权码解锁在线音乐引擎</Text>
+
+          {/* 真正的 React Native 原生输入框 */}
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder="在此粘贴或输入激活授权码"
+              placeholderTextColor="#6B7280"
+              value={inputToken}
+              onChangeText={setInputToken}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, verifying && styles.buttonDisabled]}
+            onPress={handleVerifySubmit}
+            disabled={verifying}
+            activeOpacity={0.85}
           >
-            <View style={styles.card}>
-              <View style={styles.iconBadge}>
-                <Text style={styles.badgeText}>⚡</Text>
-              </View>
+            {verifying ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>验证激活并进入</Text>
+            )}
+          </TouchableOpacity>
 
-              <Text style={styles.title}>设备激活中心</Text>
-              <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
-
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="请输入激活授权码"
-                  placeholderTextColor="#4B5563"
-                  value={inputToken}
-                  onChangeText={setInputToken}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.button, verifying && styles.buttonDisabled]}
-                onPress={handleVerifySubmit}
-                disabled={verifying}
-                activeOpacity={0.85}
-              >
-                {verifying ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.buttonText}>验证并进入应用</Text>
-                )}
-              </TouchableOpacity>
-
-              <Text style={styles.footerTip}>连接至 Cloudflare 高速安全鉴权节点</Text>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      )}
-    </View>
+          <Text style={styles.footerTip}>Cloudflare 高速鉴权网关保护中</Text>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-  flex1: { flex: 1 },
-  centerScreen: {
-    flex: 1,
-    backgroundColor: '#0F1115',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#9CA3AF',
-    letterSpacing: 0.5,
-  },
   maskContainer: {
     flex: 1,
     backgroundColor: '#0F1115',
@@ -187,10 +127,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#262B36',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
     elevation: 10,
   },
   iconBadge: {
@@ -201,28 +137,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#3B82F633',
   },
   badgeText: { fontSize: 24 },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#F9FAFB',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  inputWrapper: {
-    width: '100%',
-    marginBottom: 18,
-  },
+  title: { fontSize: 22, fontWeight: '700', color: '#F9FAFB', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#9CA3AF', marginBottom: 24, textAlign: 'center' },
+  inputWrapper: { width: '100%', marginBottom: 18 },
   input: {
     width: '100%',
     height: 52,
@@ -232,7 +151,7 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 15,
     borderWidth: 1,
-    borderColor: '#262B36',
+    borderColor: '#2563EB', // 亮蓝色突出框
   },
   button: {
     width: '100%',
@@ -241,24 +160,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  buttonDisabled: {
-    backgroundColor: '#1D3B8A',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  footerTip: {
-    marginTop: 20,
-    fontSize: 11,
-    color: '#4B5563',
-  },
+  buttonDisabled: { backgroundColor: '#1D3B8A' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  footerTip: { marginTop: 20, fontSize: 11, color: '#4B5563' },
 })
