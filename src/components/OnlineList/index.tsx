@@ -8,6 +8,8 @@ import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/comp
 import MultipleModeBar, { type MultipleModeBarType, type SelectMode } from './MultipleModeBar'
 import { clearMusicUrl, handleDislikeMusic, handlePlay, handlePlayLater, handleShare, handleShowMusicSourceDetail } from './listAction'
 import { createStyle } from '@/utils/tools'
+import { handleDownloadSong } from '@/utils/downloadManager' // 📥 1. 引入下载管理器
+import { getMusicUrl } from '@/core/music' // 📥 2. 引入实时解析播放链接方法
 
 export interface OnlineListProps {
   onRefresh: ListProps['onRefresh']
@@ -112,12 +114,24 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
         onMusicSourceDetail={info => { void handleShowMusicSourceDetail(info.musicInfo) }}
         onRemoveCache={info => { void clearMusicUrl(info.musicInfo) }}
         onDislikeMusic={info => { void handleDislikeMusic(info.musicInfo) }}
+        // 📥 3. 绑定下载回调：长按菜单点击下载时触发实时解析与下载
+        onDownload={async info => {
+          const musicInfo = info.musicInfo
+          try {
+            let playUrl = musicInfo.url
+            if (!playUrl) {
+              playUrl = await getMusicUrl(musicInfo.source, musicInfo)
+            }
+            await handleDownloadSong(playUrl, musicInfo.name, musicInfo.singer)
+          } catch (error) {
+            console.error('获取下载链接失败:', error)
+          }
+        }}
       />
       {/* <LoadingMask ref={loadingMaskRef} /> */}
     </View>
   )
 })
-
 
 const styles = createStyle({
   container: {
@@ -131,4 +145,3 @@ const styles = createStyle({
     height: 40,
   },
 })
-
