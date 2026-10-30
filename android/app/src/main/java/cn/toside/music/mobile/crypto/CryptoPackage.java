@@ -1,4 +1,4 @@
-package com.gongshang.music.mobile.crypto;
+package com.gongshang.lxmusic.mobile.crypto;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
