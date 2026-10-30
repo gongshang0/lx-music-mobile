@@ -1,4 +1,4 @@
-package cn.toside.music.mobile.lyric;
+package com.gongshang.lxmusic.mobile.lyric;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -245,10 +245,16 @@ public class Lyric extends LyricPlayer {
     lyricView.setWidth(width);
   }
 
+  public void setSingleLevel(boolean singleLine) { // 注意：原代码为 setSingleLine
+    // 保持原样
+  }
+
   public void setSingleLine(boolean singleLine) {
     if (lyricView == null) return;
     lyricView.setSingleLine(singleLine);
   }
+
+  public void setShowToggleAnima(function showToggleAnima) {} // 占位保持
 
   public void setShowToggleAnima(boolean showToggleAnima) {
     if (lyricView == null) return;
