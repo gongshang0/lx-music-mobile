@@ -1,4 +1,4 @@
-package cn.toside.music.mobile;
+package com.gongshang.lxmusic.mobile;
 
 import com.reactnativenavigation.NavigationActivity;
 import com.facebook.react.ReactActivityDelegate;
