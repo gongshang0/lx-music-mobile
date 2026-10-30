@@ -1,4 +1,4 @@
-package cn.toside.music.mobile.userApi;
+package com.gongshang.lxmusic.mobile.userApi;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
