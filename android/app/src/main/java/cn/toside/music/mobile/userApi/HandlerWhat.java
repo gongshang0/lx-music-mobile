@@ -1,4 +1,4 @@
-packagecom.gongshang.lxmusic.mobile.userApi;
+package com.gongshang.lxmusic.mobile.userApi;
 
 public class HandlerWhat {
   public static final int ACTION = 1000;
