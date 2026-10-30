@@ -1,4 +1,4 @@
-package cn.toside.music.mobile.utils;
+package com.gongshang.lxmusic.mobile.utils;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
