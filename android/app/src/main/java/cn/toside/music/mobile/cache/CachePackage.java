@@ -1,4 +1,4 @@
-package cn.toside.music.mobile.cache;
+package com.gongshang.lxmusic.mobile.cache;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
