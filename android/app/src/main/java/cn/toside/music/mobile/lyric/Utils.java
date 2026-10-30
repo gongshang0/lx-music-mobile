@@ -1,4 +1,4 @@
-package cn.toside.music.mobile.lyric;
+package com.gongshang.lxmusic.mobile.lyric;
 
 import android.os.Handler;
 
