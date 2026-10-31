@@ -71,38 +71,6 @@ public class Lyric extends LyricPlayer {
     reactAppContext.registerReceiver(screenOnOffReceiver, theFilter);
   }
 
-  // private void checkA2DPConnection(Context context) {
-  //   BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-
-  //   if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-  //     bluetoothAdapter.getProfileProxy(context, new BluetoothProfile.ServiceListener() {
-  //       @Override
-  //       public void onServiceConnected(int profile, BluetoothProfile proxy) {
-  //         if (profile == BluetoothProfile.A2DP) {
-  //           List<BluetoothDevice> connectedDevices = proxy.getConnectedDevices();
-  //           if (!connectedDevices.isEmpty()) {
-  //             System.out.println("已连接的 A2DP 媒体设备：");
-  //             for (BluetoothDevice device : connectedDevices) {
-  //               System.out.println("设备名称: " + "地址: " + device.getAddress());
-  //             }
-  //           } else {
-  //             System.out.println("没有连接的 A2DP 媒体设备");
-  //           }
-  //         }
-  //         bluetoothAdapter.closeProfileProxy(profile, proxy);
-  //       }
-
-  //       @Override
-  //       public void onServiceDisconnected(int profile) {
-  //         // 服务断开时的处理
-  //         System.out.println("蓝牙服务断开时的处理");
-  //       }
-  //     }, BluetoothProfile.A2DP);
-  //   } else {
-  //     System.out.println("蓝牙未开启或设备不支持蓝牙");
-  //   }
-  // }
-
   private boolean isDisableAutoPause() {
     return !isRunPlayer || isSendLyricTextEvent;
   }
@@ -207,16 +175,11 @@ public class Lyric extends LyricPlayer {
   public void onSetLyric(List lines) {
     this.lines = lines;
     handleGetCurrentLyric(-1);
-    // for (int i = 0; i < lines.size(); i++) {
-    //   HashMap line = (HashMap) lines.get(i);
-    //   Log.d("Lyric", "onSetLyric: " +(String) line.get("text") + " " + line.get("extendedLyrics"));
-    // }
   }
 
   @Override
   public void onPlay(int lineNum) {
     handleGetCurrentLyric(lineNum);
-    // Log.d("Lyric", lineNum + " " + text + " " + (String) line.get("translation"));
   }
 
   public void pauseLyric() {
@@ -245,7 +208,7 @@ public class Lyric extends LyricPlayer {
     lyricView.setWidth(width);
   }
 
-  public void setSingleLevel(boolean singleLine) { // 注意：原代码为 setSingleLine
+  public void setSingleLevel(boolean singleLine) { 
     // 保持原样
   }
 
@@ -253,8 +216,6 @@ public class Lyric extends LyricPlayer {
     if (lyricView == null) return;
     lyricView.setSingleLine(singleLine);
   }
-
-  public void setShowToggleAnima(function showToggleAnima) {} // 占位保持
 
   public void setShowToggleAnima(boolean showToggleAnima) {
     if (lyricView == null) return;
