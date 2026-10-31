@@ -25,7 +25,7 @@ export const AppGuardModal: React.FC = () => {
   const [verifying, setVerifying] = useState<boolean>(false)
 
   // 1. 校验卡密并设为默认在线音源
-  const verifyAndActivate = async (token: string): Promise<boolean> => {
+  const verifyAndActivate = async (token: string, showAlert = false): Promise<boolean> => {
     const cleanToken = token.trim()
     if (!cleanToken) return false
 
@@ -33,6 +33,7 @@ export const AppGuardModal: React.FC = () => {
 
     try {
       const response = await fetch(targetUrl, { method: 'GET' })
+      
       if (response.status === 200) {
         const scriptCode = await response.text()
         if (scriptCode && importUserApi) {
@@ -43,10 +44,21 @@ export const AppGuardModal: React.FC = () => {
           }
           return true
         }
+      } else {
+        // 如果服务器返回了 401/403 等状态，尝试读取错误信息
+        const errorText = await response.text()
+        console.warn('服务端鉴权未通过:', response.status, errorText)
       }
       return false
-    } catch (error) {
+    } catch (error: any) {
       console.error('鉴权或音源加载网络异常:', error)
+      // 💡 如果是手动点击验证触发的异常，弹窗显示具体错误（如网络不通、DNS解析失败）
+      if (showAlert) {
+        Alert.alert(
+          '网络连接异常 🔌',
+          `无法连接到鉴权服务器。\n错误详情: ${error?.message || String(error)}`
+        )
+      }
       return false
     }
   }
@@ -57,7 +69,7 @@ export const AppGuardModal: React.FC = () => {
       try {
         const savedToken = await AsyncStorage.getItem(AUTH_INFO_KEY)
         if (savedToken) {
-          const success = await verifyAndActivate(savedToken)
+          const success = await verifyAndActivate(savedToken, false)
           if (success) {
             setLocked(false)
             setChecking(false)
@@ -83,7 +95,8 @@ export const AppGuardModal: React.FC = () => {
     }
 
     setVerifying(true)
-    const success = await verifyAndActivate(token)
+    // 传入 true，代表如果是网络断开或请求抛错，会弹窗提示详细原因
+    const success = await verifyAndActivate(token, true)
     setVerifying(false)
 
     if (success) {
@@ -91,9 +104,11 @@ export const AppGuardModal: React.FC = () => {
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
     } else {
+      // 如果不是网络异常（即服务器正常返回了拒绝，或验证没过）
+      // 提示用户卡密无效或过期
       Alert.alert(
         '激活失败 ❌',
-        '授权码无效或已过期，请检查后重新输入。'
+        '授权码无效、已过期或网络未联通，请检查后重新输入。'
       )
     }
   }
@@ -176,7 +191,7 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 16, fontSize: 14, color: '#64748B' },
   maskContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC', // 清爽纯白背景
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -184,7 +199,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#FFFFFF', // 高亮纯白优雅卡片
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 28,
     alignItems: 'center',
@@ -200,7 +215,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#EFF6FF', // 极光淡蓝底色
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 18,
@@ -220,7 +235,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 15,
     borderWidth: 1.5,
-    borderColor: '#3B82F6', // 高饱和高亮蓝边框
+    borderColor: '#3B82F6',
   },
   button: {
     width: '100%',
