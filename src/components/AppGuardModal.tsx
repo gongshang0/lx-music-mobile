@@ -16,7 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi } from '@/core/userApi'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
-const BASE_AUTH_URL = 'https://lx123.gongshangss.dpdns.org/source.js'
+// 💡 关键修改：指向卡密验证 Worker 的自定义域名
+const BASE_AUTH_URL = 'https://lx-music-auth.gongshangss.dpdns.org/source.js'
 
 export const AppGuardModal: React.FC = () => {
   const [locked, setLocked] = useState<boolean>(true)
@@ -45,14 +46,12 @@ export const AppGuardModal: React.FC = () => {
           return true
         }
       } else {
-        // 如果服务器返回了 401/403 等状态，尝试读取错误信息
         const errorText = await response.text()
         console.warn('服务端鉴权未通过:', response.status, errorText)
       }
       return false
     } catch (error: any) {
       console.error('鉴权或音源加载网络异常:', error)
-      // 💡 如果是手动点击验证触发的异常，弹窗显示具体错误（如网络不通、DNS解析失败）
       if (showAlert) {
         Alert.alert(
           '网络连接异常 🔌',
@@ -95,7 +94,6 @@ export const AppGuardModal: React.FC = () => {
     }
 
     setVerifying(true)
-    // 传入 true，代表如果是网络断开或请求抛错，会弹窗提示详细原因
     const success = await verifyAndActivate(token, true)
     setVerifying(false)
 
@@ -104,8 +102,6 @@ export const AppGuardModal: React.FC = () => {
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
     } else {
-      // 如果不是网络异常（即服务器正常返回了拒绝，或验证没过）
-      // 提示用户卡密无效或过期
       Alert.alert(
         '激活失败 ❌',
         '授权码无效、已过期或网络未联通，请检查后重新输入。'
