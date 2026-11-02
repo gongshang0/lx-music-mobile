@@ -16,8 +16,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi } from '@/core/userApi'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
-// 💡 修改这里：使用官方 workers.dev 默认域名，彻底避免自定义域名未绑定导致的连接失败
-const BASE_AUTH_URL = 'https://lx-music-auth.gongshang13.workers.dev/source.js'
+
+// 💡 域名策略：自定义域名为首选（国内可直连），workers.dev 为备用自动降级
+//    注意：workers.dev 在中国大陆被 DNS 污染，不能作为首选
+const AUTH_HOSTS = [
+  'https://lx-music-auth.gongshangss.dpdns.org/source.js',
+  'https://lx-music-auth.gongshang13.workers.dev/source.js',
+]
+
+const REQUEST_TIMEOUT_MS = 15000
+
+// 手动超时：Hermes 环境不一定支持 AbortSignal.timeout，用 AbortController 兜底
+const fetchWithTimeout = async (url: string) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { method: 'GET', signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export const AppGuardModal: React.FC = () => {
   const [locked, setLocked] = useState<boolean>(true)
@@ -25,44 +43,56 @@ export const AppGuardModal: React.FC = () => {
   const [inputToken, setInputToken] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
-  // 1. 校验卡密并设为默认在线音源
+  // 1. 校验卡密并设为默认在线音源（多域名自动降级）
   const verifyAndActivate = async (token: string, showAlert = false): Promise<boolean> => {
     const cleanToken = token.trim()
     if (!cleanToken) return false
 
-    const targetUrl = `${BASE_AUTH_URL}?token=${encodeURIComponent(cleanToken)}`
+    let lastError: unknown = null
 
-    try {
-      const response = await fetch(targetUrl, { method: 'GET' })
-      
-      if (response.status === 200) {
-        const scriptCode = await response.text()
-        if (scriptCode && importUserApi) {
-          const apiInfo = await importUserApi(scriptCode)
-          const targetApiId = apiInfo?.id || 'user_api'
-          if (setUserApi) {
-            await setUserApi(targetApiId)
+    for (const host of AUTH_HOSTS) {
+      try {
+        const response = await fetchWithTimeout(`${host}?token=${encodeURIComponent(cleanToken)}`)
+
+        if (response.status !== 200) {
+          const errorText = await response.text()
+          console.warn('服务端鉴权未通过:', host, response.status, errorText)
+          // 4xx = 卡密无效/过期，服务器正常，无需再试其他域名
+          // 5xx = 服务器内部错误，也不是域名问题，但保持行为一致直接结束
+          if (response.status >= 500) {
+            lastError = `服务端错误（${response.status}）`
+            continue
           }
+          lastError = `授权码无效或已过期（服务端返回: ${response.status}）`
+          break
+        }
+
+        const scriptCode = await response.text()
+        if (!scriptCode || !importUserApi) continue
+
+        const apiInfo = await importUserApi(scriptCode)
+        if (apiInfo && setUserApi) {
+          await setUserApi(apiInfo.id || 'user_api')
           return true
         }
-      } else {
-        const errorText = await response.text()
-        console.warn('服务端鉴权未通过:', response.status, errorText)
-        if (showAlert) {
-          Alert.alert('鉴权未通过', `状态码: ${response.status}\n原因: ${errorText}`)
-        }
+      } catch (error) {
+        // 超时 / 连不上 → 换下一个域名
+        lastError = error
+        console.error('此域名连接失败:', host, error)
+        continue
       }
-      return false
-    } catch (error: any) {
-      console.error('鉴权或音源加载网络异常:', error)
-      if (showAlert) {
-        Alert.alert(
-          '网络连接异常 🔌',
-          `无法连接到鉴权服务器。\n错误详情: ${error?.message || String(error)}`
-        )
-      }
-      return false
     }
+
+    if (showAlert) {
+      const isNetworkError = lastError instanceof Error && String(lastError.name) === 'AbortError'
+      Alert.alert(
+        isNetworkError ? '网络连接异常 🔌' : '激活失败 ✖',
+        isNetworkError
+          ? '无法连接到鉴权服务器，请检查网络后重试。'
+          : `授权码无效、已过期或网络未联通，请检查后重新输入。${lastError ? `\n详情: ${String(lastError)}` : ''}`,
+      )
+    }
+    return false
   }
 
   // 2. 启动时读取本地卡密
@@ -104,9 +134,8 @@ export const AppGuardModal: React.FC = () => {
       await AsyncStorage.setItem(AUTH_INFO_KEY, token)
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
-    } else {
-      // 如果 verifyAndActivate 内部已经弹过了详细错误，这里就不重复弹了，或者保持提示
     }
+    // 失败时 verifyAndActivate 内部已经弹出了详细错误，这里不再重复弹
   }
 
   if (checking) {
