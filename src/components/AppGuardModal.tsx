@@ -16,8 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi } from '@/core/userApi'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
-// 💡 关键修改：指向卡密验证 Worker 的自定义域名
-const BASE_AUTH_URL = 'https://lx-music-auth.gongshangss.dpdns.org/source.js'
+// 💡 修改这里：使用官方 workers.dev 默认域名，彻底避免自定义域名未绑定导致的连接失败
+const BASE_AUTH_URL = 'https://lx-music-auth.gongshang13.workers.dev/source.js'
 
 export const AppGuardModal: React.FC = () => {
   const [locked, setLocked] = useState<boolean>(true)
@@ -48,6 +48,9 @@ export const AppGuardModal: React.FC = () => {
       } else {
         const errorText = await response.text()
         console.warn('服务端鉴权未通过:', response.status, errorText)
+        if (showAlert) {
+          Alert.alert('鉴权未通过', `状态码: ${response.status}\n原因: ${errorText}`)
+        }
       }
       return false
     } catch (error: any) {
@@ -102,10 +105,7 @@ export const AppGuardModal: React.FC = () => {
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
     } else {
-      Alert.alert(
-        '激活失败 ❌',
-        '授权码无效、已过期或网络未联通，请检查后重新输入。'
-      )
+      // 如果 verifyAndActivate 内部已经弹过了详细错误，这里就不重复弹了，或者保持提示
     }
   }
 
