@@ -49,7 +49,7 @@ const getDeviceId = async () => {
 export const AppGuardModal: React.FC = () => {
   const [locked, setLocked] = useState<boolean>(true)
   const [checking, setChecking] = useState<boolean>(true)
-  const [inputToken, setInputTokdn] = useState<string>('')
+  const [inputToken, setInputToken] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
   // 校验卡密并设为默认在线音源（多域名自动降级 + 全链路诊断）
@@ -150,7 +150,7 @@ export const AppGuardModal: React.FC = () => {
 
   // 用户提交验证
   const handleVerifySubmit = async () => {
-    const token = inputTokdn.trim()
+    const token = inputToken.trim()
     if (!token) {
       Alert.alert('提示', '请输入有效授权码激活应用')
       return
@@ -207,8 +207,8 @@ export const AppGuardModal: React.FC = () => {
               style={styles.input}
               placeholder="在此粘贴或输入激活授权码"
               placeholderTextColor="#94A3B8"
-              value={inputTokdn}
-              onChangeText={setInputTokdn}
+              value={inputToken}
+              onChangeText={setInputToken}
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
