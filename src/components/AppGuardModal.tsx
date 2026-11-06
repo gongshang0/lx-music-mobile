@@ -16,9 +16,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi } from '@/core/userApi'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
+const DEVICE_ID_KEY = '@lx_app_device_id'
 
-// 💡 域名策略：自定义域名为首选（国内可直连），workers.dev 为备用自动降级
-//    注意：workers.dev 在中国大陆被 DNS 污染，不能作为首选
+// 💡 自定义域名为首选（国内可直连），workers.dev 为备用自动降级
 const AUTH_HOSTS = [
   'https://lx-music-auth.gongshangss.dpdns.org/source.js',
   'https://lx-music-auth.gongshang13.workers.dev/source.js',
@@ -26,7 +26,6 @@ const AUTH_HOSTS = [
 
 const REQUEST_TIMEOUT_MS = 15000
 
-// 手动超时：Hermes 环境不一定支持 AbortSignal.timeout，用 AbortController 兜底
 const fetchWithTimeout = async (url: string) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -37,65 +36,96 @@ const fetchWithTimeout = async (url: string) => {
   }
 }
 
+// 生成一次、永久保存的设备标识（卸载重装会重置）
+const getDeviceId = async () => {
+  let id = await AsyncStorage.getItem(DEVICE_ID_KEY)
+  if (!id) {
+    id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    await AsyncStorage.setItem(DEVICE_ID_KEY, id)
+  }
+  return id
+}
+
 export const AppGuardModal: React.FC = () => {
   const [locked, setLocked] = useState<boolean>(true)
   const [checking, setChecking] = useState<boolean>(true)
-  const [inputToken, setInputToken] = useState<string>('')
+  const [inputToken, setInputTokdn] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
-  // 1. 校验卡密并设为默认在线音源（多域名自动降级）
+  // 校验卡密并设为默认在线音源（多域名自动降级 + 全链路诊断）
   const verifyAndActivate = async (token: string, showAlert = false): Promise<boolean> => {
     const cleanToken = token.trim()
     if (!cleanToken) return false
 
+    const deviceId = await getDeviceId()
     let lastError: unknown = null
 
     for (const host of AUTH_HOSTS) {
       try {
-        const response = await fetchWithTimeout(`${host}?token=${encodeURIComponent(cleanToken)}`)
+        const response = await fetchWithTimeout(
+          `${host}?token=${encodeURIComponent(cleanToken)}&device=${encodeURIComponent(deviceId)}`,
+        )
 
         if (response.status !== 200) {
           const errorText = await response.text()
-          console.warn('服务端鉴权未通过:', host, response.status, errorText)
-          // 4xx = 卡密无效/过期，服务器正常，无需再试其他域名
-          // 5xx = 服务器内部错误，也不是域名问题，但保持行为一致直接结束
-          if (response.status >= 500) {
-            lastError = `服务端错误（${response.status}）`
-            continue
-          }
-          lastError = `授权码无效或已过期（服务端返回: ${response.status}）`
-          break
+          lastError = new Error(
+            `HTTP ${response.status} @ ${host}\n服务端返回: ${errorText.slice(0, 120)}`,
+          )
+          // 4xx = 卡密问题或限流，服务器正常，不必再试其他域名
+          if (response.status >= 400 && response.status < 500) break
+          continue
         }
 
         const scriptCode = await response.text()
-        if (!scriptCode || !importUserApi) continue
 
-        const apiInfo = await importUserApi(scriptCode)
-        if (apiInfo && setUserApi) {
-          await setUserApi(apiInfo.id || 'user_api')
-          return true
+        if (!scriptCode) {
+          lastError = new Error(`响应为空 (status=${response.status} @ ${host})`)
+          continue
         }
+        if (!importUserApi || !setUserApi) {
+          lastError = new Error('core/userApi 缺少导出方法 (circular import?)')
+          break
+        }
+
+        let apiInfo: { id?: string } | null = null
+        try {
+          apiInfo = await importUserApi(scriptCode)
+        } catch (importErr) {
+          const msg = importErr instanceof Error ? importErr.message : String(importErr)
+          lastError = new Error(`音源导入抛出异常: ${msg}`)
+          break
+        }
+
+        if (!apiInfo) {
+          lastError = new Error(
+            `音源导入返回空。脚本长度=${scriptCode.length}\n开头100字: ${scriptCode.slice(0, 100)}`,
+          )
+          break
+        }
+
+        await setUserApi(apiInfo.id || 'user_api')
+        return true
       } catch (error) {
-        // 超时 / 连不上 → 换下一个域名
         lastError = error
-        console.error('此域名连接失败:', host, error)
         continue
       }
     }
 
     if (showAlert) {
-      const isNetworkError = lastError instanceof Error && String(lastError.name) === 'AbortError'
+      const errName = lastError instanceof Error ? lastError.name : 'Unknown'
+      const errMsg = lastError instanceof Error ? lastError.message : String(lastError)
+      const isAbort = errName === 'AbortError'
       Alert.alert(
-        isNetworkError ? '网络连接异常 🔌' : '激活失败 ✖',
-        isNetworkError
-          ? '无法连接到鉴权服务器，请检查网络后重试。'
-          : `授权码无效、已过期或网络未联通，请检查后重新输入。${lastError ? `\n详情: ${String(lastError)}` : ''}`,
+        isAbort ? '网络连接异常 🔌' : '激活失败 ✖',
+        isAbort
+          ? `15秒内未能连接到鉴权服务器。\n错误类型: ${errName}`
+          : `错误类型: ${errName}\n详情: ${errMsg || '(空)'}`,
       )
     }
     return false
   }
 
-  // 2. 启动时读取本地卡密
+  // 启动时读取本地卡密
   useEffect(() => {
     const initCheck = async () => {
       try {
@@ -118,9 +148,9 @@ export const AppGuardModal: React.FC = () => {
     initCheck()
   }, [])
 
-  // 3. 用户提交验证
+  // 用户提交验证
   const handleVerifySubmit = async () => {
-    const token = inputToken.trim()
+    const token = inputTokdn.trim()
     if (!token) {
       Alert.alert('提示', '请输入有效授权码激活应用')
       return
@@ -135,7 +165,6 @@ export const AppGuardModal: React.FC = () => {
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
     }
-    // 失败时 verifyAndActivate 内部已经弹出了详细错误，这里不再重复弹
   }
 
   if (checking) {
@@ -178,8 +207,8 @@ export const AppGuardModal: React.FC = () => {
               style={styles.input}
               placeholder="在此粘贴或输入激活授权码"
               placeholderTextColor="#94A3B8"
-              value={inputToken}
-              onChangeText={setInputToken}
+              value={inputTokdn}
+              onChangeText={setInputTokdn}
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
