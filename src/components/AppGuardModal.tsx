@@ -98,15 +98,28 @@ export const AppGuardModal: React.FC = () => {
             continue
           }
 
-          let envelope: { ivB64?: string, ctB64?: string, alg?: string }
+          let envelope: { format?: string, alg?: string, ivB64?: string, ctB64?: string }
           try {
             envelope = JSON.parse(envelopeText)
           } catch (jsonErr) {
-            lastError = new Error(`信封不是合法 JSON (线路${line} @ ${host})`)
+            lastError = new Error(`音源更新失败: 信封不是合法 JSON (线路${line} @ ${host})`)
+            continue
+          }
+          // 🛡️ 硬校验:格式/算法不匹配的信封一律拒收,绝不把错误数据喂给音源引擎
+          if (envelope.format !== 'lx-source-enc') {
+            lastError = new Error(
+              `音源更新失败: 信封格式校验不通过 (线路${line} @ ${host})\nformat=${envelope.format ?? '(缺失)'}，应为 lx-source-enc`,
+            )
+            continue
+          }
+          if (envelope.alg !== 'AES-256-CBC') {
+            lastError = new Error(
+              `音源更新失败: 信封算法不匹配 (线路${line} @ ${host})\nalg=${envelope.alg ?? '(缺失)'}，应为 AES-256-CBC`,
+            )
             continue
           }
           if (!envelope.ivB64 || !envelope.ctB64) {
-            lastError = new Error(`信封缺少 iv/密文字段 (线路${line} @ ${host})`)
+            lastError = new Error(`音源更新失败: 信封缺少 iv/密文字段 (线路${line} @ ${host})`)
             continue
           }
 
@@ -120,8 +133,11 @@ export const AppGuardModal: React.FC = () => {
             continue
           }
 
-          if (!scriptCode) {
-            lastError = new Error(`解密结果为空 (线路${line} @ ${host})`)
+          if (!scriptCode || scriptCode.length < 1000) {
+            // 解密失败会返回空串/异常短串(Library catch 吞错的话),一律视为损坏
+            lastError = new Error(
+              `音源更新失败: 解密结果异常 (线路${line} @ ${host})\n长度=${scriptCode?.length ?? 0}，疑似密钥不匹配或信封损坏`,
+            )
             continue
           }
 
