@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from 'react'
+﻿import { memo, useCallback, useMemo } from 'react'
 
 import { View } from 'react-native'
 
@@ -10,8 +10,6 @@ import { useI18n } from '@/lang'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useSettingValue } from '@/store/setting/hook'
 import { useStatus, useUserApiList } from '@/store/userApi'
-import Button from '../../components/Button'
-import UserApiEditModal, { type UserApiEditModalType } from './UserApiEditModal'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 // import { importUserApi, removeUserApi } from '@/core/userApi'
@@ -90,11 +88,7 @@ export default memo(() => {
     })
   }, [userApiListRaw, apiStatus, apiSourceSetting, t])
 
-  const modalRef = useRef<UserApiEditModalType>(null)
-  const handleShow = () => {
-    modalRef.current?.show()
-  }
-
+  // 🔒 「添加音源」入口已下线：音源由服务器随卡密授权加密下发，防止用户自行导入其他音源
   return (
     <SubTitle title={t('setting_basic_source')}>
       <View style={styles.list}>
@@ -105,10 +99,6 @@ export default memo(() => {
           userApiList.map(({ id, name, desc, statusLabel }) => <Item name={name} desc={desc} statusLabel={statusLabel} id={id} key={id} change={setApiSourceId} />)
         }
       </View>
-      <View style={styles.btn}>
-        <Button onPress={handleShow}>{t('setting_basic_source_user_api_btn')}</Button>
-      </View>
-      <UserApiEditModal ref={modalRef} />
     </SubTitle>
   )
 })
