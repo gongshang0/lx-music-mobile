@@ -14,15 +14,23 @@ import {
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi } from '@/core/userApi'
+import { aesDecrypt } from '@/utils/nativeModules/crypto'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
 const DEVICE_ID_KEY = '@lx_app_device_id'
 
 // 💡 自定义域名为首选（国内可直连），workers.dev 为备用自动降级
 const AUTH_HOSTS = [
-  'https://lx-music-auth.gongshangss.dpdns.org/source.js',
-  'https://lx-music-auth.gongshang13.workers.dev/source.js',
+  'https://lx-music-auth.gongshangss.dpdns.org',
+  'https://lx-music-auth.gongshang13.workers.dev',
 ]
+
+// 🎵 音源加密下发端点：返回 AES-256-CBC 加密信封(JSON)
+const ENC_SOURCE_PATH = '/enc-source'
+
+// 🔑 内置解密密钥（与服务器打包信封的密钥配对，base64 形式）
+const SOURCE_KEY_B64 = 'KKFuyGf5ncF6UQaWM8LrrfmKjqQRBoFott4x9pUTulA='
+const SOURCE_AES_MODE = 'AES/CBC/PKCS7Padding'
 
 const REQUEST_TIMEOUT_MS = 15000
 
@@ -52,64 +60,107 @@ export const AppGuardModal: React.FC = () => {
   const [inputToken, setInputToken] = useState<string>('')
   const [verifying, setVerifying] = useState<boolean>(false)
 
-  // 校验卡密并设为默认在线音源（多域名自动降级 + 全链路诊断）
+  // 校验卡密 + 拉取加密音源信封 + 内存解密导入（双线路 × 双域名 降级 + 全链路诊断）
   const verifyAndActivate = async (token: string, showAlert = false): Promise<boolean> => {
     const cleanToken = token.trim()
     if (!cleanToken) return false
 
     const deviceId = await getDeviceId()
     let lastError: unknown = null
+    let line1Fetched = false
 
-    for (const host of AUTH_HOSTS) {
-      try {
-        const response = await fetchWithTimeout(
-          `${host}?token=${encodeURIComponent(cleanToken)}&device=${encodeURIComponent(deviceId)}`,
-        )
-
-        if (response.status !== 200) {
-          const errorText = await response.text()
-          lastError = new Error(
-            `HTTP ${response.status} @ ${host}\n服务端返回: ${errorText.slice(0, 120)}`,
-          )
-          // 4xx = 卡密问题或限流，服务器正常，不必再试其他域名
-          if (response.status >= 400 && response.status < 500) break
-          continue
-        }
-
-        const scriptCode = await response.text()
-
-        if (!scriptCode) {
-          lastError = new Error(`响应为空 (status=${response.status} @ ${host})`)
-          continue
-        }
-        if (!importUserApi || !setUserApi) {
-          lastError = new Error('core/userApi 缺少导出方法 (circular import?)')
-          break
-        }
-
-        let apiInfo: { id?: string } | null = null
+    // 尝试某一线路:先走主域名,网络级失败再试备用域名
+    const tryLine = async (line: number): Promise<boolean> => {
+      for (const host of AUTH_HOSTS) {
         try {
-          apiInfo = await importUserApi(scriptCode)
-        } catch (importErr) {
-          const msg = importErr instanceof Error ? importErr.message : String(importErr)
-          lastError = new Error(`音源导入抛出异常: ${msg}`)
-          break
-        }
-
-        if (!apiInfo) {
-          lastError = new Error(
-            `音源导入返回空。脚本长度=${scriptCode.length}\n开头100字: ${scriptCode.slice(0, 100)}`,
+          const response = await fetchWithTimeout(
+            `${host}${ENC_SOURCE_PATH}?token=${encodeURIComponent(cleanToken)}&device=${encodeURIComponent(deviceId)}&line=${line}`,
           )
-          break
-        }
 
-        await setUserApi(apiInfo.id || 'user_api')
-        return true
-      } catch (error) {
-        lastError = error
-        continue
+          if (response.status !== 200) {
+            const errorText = await response.text()
+            lastError = new Error(
+              `HTTP ${response.status} @ 线路${line} ${host}\n服务端返回: ${errorText.slice(0, 120)}`,
+            )
+            if (line === 1) {
+              // 线路1 拿不到:先试备用域名,再降级线路2
+              if (response.status >= 400 && response.status < 500) continue
+              continue
+            }
+            continue
+          }
+
+          if (line === 1) line1Fetched = true
+
+          const envelopeText = await response.text()
+          if (!envelopeText) {
+            lastError = new Error(`信封响应为空 (线路${line} @ ${host})`)
+            continue
+          }
+
+          let envelope: { ivB64?: string, ctB64?: string, alg?: string }
+          try {
+            envelope = JSON.parse(envelopeText)
+          } catch (jsonErr) {
+            lastError = new Error(`信封不是合法 JSON (线路${line} @ ${host})`)
+            continue
+          }
+          if (!envelope.ivB64 || !envelope.ctB64) {
+            lastError = new Error(`信封缺少 iv/密文字段 (线路${line} @ ${host})`)
+            continue
+          }
+
+          // 🔓 内存里解密出明文音源脚本(不落盘)
+          let scriptCode: string
+          try {
+            scriptCode = await aesDecrypt(envelope.ctB64, SOURCE_KEY_B64, envelope.ivB64, SOURCE_AES_MODE)
+          } catch (decErr) {
+            const msg = decErr instanceof Error ? decErr.message : String(decErr)
+            lastError = new Error(`音源解密失败 (线路${line}): ${msg}`)
+            continue
+          }
+
+          if (!scriptCode) {
+            lastError = new Error(`解密结果为空 (线路${line} @ ${host})`)
+            continue
+          }
+
+          if (!importUserApi || !setUserApi) {
+            lastError = new Error('core/userApi 缺少导出方法 (circular import?)')
+            break
+          }
+
+          let apiInfo: { id?: string } | null = null
+          try {
+            apiInfo = await importUserApi(scriptCode)
+          } catch (importErr) {
+            const msg = importErr instanceof Error ? importErr.message : String(importErr)
+            lastError = new Error(`音源导入抛出异常 (线路${line}): ${msg}`)
+            continue
+          }
+
+          if (!apiInfo) {
+            lastError = new Error(
+              `音源导入返回空 (线路${line})。脚本长度=${scriptCode.length}\n开头100字: ${scriptCode.slice(0, 100)}`,
+            )
+            continue
+          }
+
+          await setUserApi(apiInfo.id || 'user_api')
+          return true
+        } catch (error) {
+          lastError = error
+          continue
+        }
       }
+      return false
     }
+
+    // 主线路优先,失败再降级线路2
+    const ok1 = await tryLine(1)
+    if (ok1) return true
+    const ok2 = await tryLine(2)
+    if (ok2) return true
 
     if (showAlert) {
       const errName = lastError instanceof Error ? lastError.name : 'Unknown'
@@ -119,7 +170,7 @@ export const AppGuardModal: React.FC = () => {
         isAbort ? '网络连接异常 🔌' : '激活失败 ✖',
         isAbort
           ? `15秒内未能连接到鉴权服务器。\n错误类型: ${errName}`
-          : `错误类型: ${errName}\n详情: ${errMsg || '(空)'}`,
+          : `错误类型: ${errName}\n详情: ${errMsg || '(空)'}${line1Fetched && ok1 === false ? '\n(线路1/线路2 均已尝试)' : ''}`,
       )
     }
     return false
