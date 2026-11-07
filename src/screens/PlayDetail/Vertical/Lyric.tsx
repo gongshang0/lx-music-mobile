@@ -1,5 +1,5 @@
 import { memo, useMemo, useEffect, useRef, useCallback } from 'react'
-import { View, FlatList, type FlatListProps, type LayoutChangeEvent, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native'
+import { View, FlatList, type FlatListProps, type NativeSyntheticEvent, type NativeScrollEvent, type LayoutChangeEvent } from 'react-native'
 // import { useLayout } from '@/utils/hooks'
 import { type Line, useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { createStyle } from '@/utils/tools'
@@ -7,6 +7,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { AnimatedColorText } from '@/components/common/Text'
+import { KaraokeText, useKaraokeProgress } from '@/components/common/KaraokeText'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
 import { scrollTo } from '@/utils/scroll'
@@ -40,16 +41,14 @@ type FlatListType = FlatListProps<Line>
 //     let listener: ReturnType<typeof onNavigationComponentDidDisappearEvent>
 //     showCommentRef.current = !!componentIds.comment
 //     if (showCommentRef.current) {
-//       if (showLyricRef.current) screenUnkeepAwake()
+//       showLyricRef.current ? screenUnkeepAwake() : screenkeepAwake()
 //       listener = onNavigationComponentDidDisappearEvent(componentIds.comment as string, () => {
 //         if (showLyricRef.current && AppState.currentState == 'active') screenkeepAwake()
 //       })
 //     }
-
 //     const rm = global.state_event.on('componentIdsUpdated', (ids) => {
 
 //     })
-
 //     return () => {
 //       if (listener) listener.remove()
 //     }
@@ -60,9 +59,10 @@ interface LineProps {
   line: Line
   lineNum: number
   activeLine: number
+  progress: number
   onLayout: (lineNum: number, height: number, width: number) => void
 }
-const LrcLine = memo(({ line, lineNum, activeLine, onLayout }: LineProps) => {
+const LrcLine = memo(({ line, lineNum, activeLine, progress, onLayout }: LineProps) => {
   const theme = useTheme()
   const lrcFontSize = useSettingValue('playDetail.vertical.style.lrcFontSize')
   const textAlign = useSettingValue('playDetail.style.align')
@@ -91,11 +91,24 @@ const LrcLine = memo(({ line, lineNum, activeLine, onLayout }: LineProps) => {
   // https://stackoverflow.com/a/72822360
   return (
     <View style={styles.line} onLayout={handleLayout}>
-      <AnimatedColorText style={{
-        ...styles.lineText,
-        textAlign,
-        lineHeight,
-      }} textBreakStrategy="simple" color={colors[0]} opacity={colors[2]} size={size}>{line.text}</AnimatedColorText>
+      {/* 🎤 当前句:逐字卡拉OK填充效果(酷狗样式),其余行保持整句变色 */}
+      {activeLine == lineNum ? (
+        <KaraokeText
+          text={line.text}
+          progress={Math.max(0, progress)}
+          activeColor={theme['c-primary']}
+          inactiveColor={theme['c-350']}
+          size={size}
+          lineHeight={lineHeight}
+          textAlign={textAlign}
+        />
+      ) : (
+        <AnimatedColorText style={{
+          ...styles.lineText,
+          textAlign,
+          lineHeight,
+        }} textBreakStrategy="simple" color={colors[0]} opacity={colors[2]} size={size}>{line.text}</AnimatedColorText>
+      )}
       {
         line.extendedLyrics.map((lrc, index) => {
           return (<AnimatedColorText style={{
@@ -117,6 +130,7 @@ const wait = async() => new Promise(resolve => setTimeout(resolve, 100))
 export default () => {
   const lyricLines = useLrcSet()
   const { line } = useLrcPlay()
+  const karaokeProgress = useKaraokeProgress(lyricLines, line)
   const flatListRef = useRef<FlatList>(null)
   const playLineRef = useRef<PlayLineType>(null)
   const isPauseScrollRef = useRef(true)
@@ -299,7 +313,7 @@ export default () => {
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => {
     return (
-      <LrcLine line={item} lineNum={index} activeLine={line} onLayout={handleLineLayout} />
+      <LrcLine line={item} lineNum={index} activeLine={line} progress={karaokeProgress} onLayout={handleLineLayout} />
     )
   }
   const getkey: FlatListType['keyExtractor'] = (item, index) => `${index}${item.text}`
