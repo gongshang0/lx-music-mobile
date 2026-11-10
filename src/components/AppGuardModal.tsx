@@ -11,10 +11,12 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
 import { state as userApiState } from '@/store/userApi'
+import { compareVer } from '@/utils'
 import { aesDecrypt } from '@/utils/nativeModules/crypto'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
@@ -27,6 +29,10 @@ const SOURCE_VER_CHECK_KEY = '@lx_app_source_ver_check'
 const SOURCE_VER_CHECK_INTERVAL = 24 * 3600 * 1000
 // 🌐 音源版本查询端点（免验证轻端点，只回一个版本号）
 const SOURCE_VER_PATH = '/source-ver'
+// 🚀 App 新版本查询端点（免验证轻端点，服务器下发新版本号+下载链接+说明）
+const APP_UPDATE_PATH = '/app-ver'
+const APP_UPDATE_CHECK_KEY = '@lx_app_update_check'
+const APP_UPDATE_DISMISS_KEY = '@lx_app_update_dismissed'
 
 // 💡 大陆可直连的自定义域名（workers.dev 在大陆被运营商阻断，备用域名只会白等超时，已移除）
 const AUTH_HOSTS = [
@@ -282,6 +288,48 @@ export const AppGuardModal: React.FC = () => {
     }
   }
 
+  // 🚀 App 新版本检查：每 24h 轻请求一次 /app-ver；
+  // 服务器 version 高于本机且该版本未被「以后再说」跳过时，弹窗引导跳转下载
+  const checkAppUpdate = async (): Promise<void> => {
+    try {
+      const nextCheckAt = await AsyncStorage.getItem(APP_UPDATE_CHECK_KEY)
+      if (nextCheckAt && Date.now() < Number(nextCheckAt)) return
+
+      const res = await fetchWithTimeout(`${AUTH_HOSTS[0]}${APP_UPDATE_PATH}`)
+      await AsyncStorage.setItem(APP_UPDATE_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL))
+      if (res.status !== 200) return
+      const j = JSON.parse(await res.text())
+      const serverVer = typeof j?.version === 'string' ? j.version : ''
+      const downloadUrl = typeof j?.url === 'string' ? j.url : ''
+      const notes = typeof j?.notes === 'string' ? j.notes : ''
+      // 未发布新版（url 为空）或版本不高 → 静默跳过
+      if (!serverVer || !downloadUrl) return
+      const localVer = process.versions.app || '0.0.0'
+      if (compareVer(localVer, serverVer) !== -1) return
+      const dismissed = await AsyncStorage.getItem(APP_UPDATE_DISMISS_KEY)
+      if (dismissed === serverVer) return
+
+      Alert.alert(
+        `🚀 发现新版本 ${serverVer}`,
+        `当前版本：${localVer}${notes ? `\n\n更新说明：\n${notes}` : ''}`,
+        [
+          {
+            text: '以后再说',
+            onPress: () => { void AsyncStorage.setItem(APP_UPDATE_DISMISS_KEY, serverVer).catch(() => {}) },
+          },
+          {
+            text: '立即更新',
+            onPress: () => { void Linking.openURL(downloadUrl).catch(() => {}) },
+          },
+        ],
+        { cancelable: false },
+      )
+    } catch (e) {
+      // 网络/解析失败 → 静默（下次再试）
+      try { await AsyncStorage.setItem(APP_UPDATE_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL)) } catch (e2) { /* 忽略 */ }
+    }
+  }
+
   // 启动时读取本地卡密
   useEffect(() => {
     const initCheck = async () => {
@@ -293,6 +341,7 @@ export const AppGuardModal: React.FC = () => {
           setLocked(false)
           setChecking(false)
           checkSourceVersion(savedToken) // 异步后台查,不阻塞进入
+          void checkAppUpdate() // 异步后台查,不阻塞进入
           return
         }
         if (savedToken) {
@@ -300,6 +349,7 @@ export const AppGuardModal: React.FC = () => {
           if (success) {
             setLocked(false)
             setChecking(false)
+            void checkAppUpdate()
             return
           }
           // 重新验证失败 → 缓存凭据作废，进入手动激活界面
@@ -331,6 +381,7 @@ export const AppGuardModal: React.FC = () => {
       await AsyncStorage.setItem(AUTH_INFO_KEY, token)
       setLocked(false)
       Alert.alert('激活成功 🎉', '授权码验证通过，在线音乐已解锁！')
+      void checkAppUpdate()
     }
   }
 
