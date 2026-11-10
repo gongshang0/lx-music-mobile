@@ -20,6 +20,12 @@ const AUTH_INFO_KEY = '@lx_app_auth_info'
 const DEVICE_ID_KEY = '@lx_app_device_id'
 // 💾 免重验窗口凭据：服务端随响应头下发卡密有效期，到期前启动不再联网验证
 const AUTH_VALID_UNTIL_KEY = '@lx_app_auth_valid_until'
+// 🔄 音源版本轮询：版本变了才触发重新激活（即使还在免重验窗口内）
+const SOURCE_VER_KEY = '@lx_app_source_ver'
+const SOURCE_VER_CHECK_KEY = '@lx_app_source_ver_check'
+const SOURCE_VER_CHECK_INTERVAL = 24 * 3600 * 1000
+// 🌐 音源版本查询端点（免验证轻端点，只回一个版本号）
+const SOURCE_VER_PATH = '/source-ver'
 
 // 💡 大陆可直连的自定义域名（workers.dev 在大陆被运营商阻断，备用域名只会白等超时，已移除）
 const AUTH_HOSTS = [
@@ -70,6 +76,7 @@ export const AppGuardModal: React.FC = () => {
     let lastError: unknown = null
     let line1Fetched = false
     let seenExpiresAt: string | null = null
+    let seenSourceVer: string | null = null
 
     // 尝试某一线路:先走主域名,网络级失败再试备用域名
     const tryLine = async (line: number): Promise<boolean> => {
@@ -97,6 +104,10 @@ export const AppGuardModal: React.FC = () => {
           // 📅 记录服务端下发的卡密有效期（免重验缓存凭据，永久卡会是远期时间）
           if (!seenExpiresAt) {
             try { seenExpiresAt = response.headers.get('X-Card-Expires-At') } catch (e) { /* 忽略 */ }
+          }
+          // 🔄 记录音源版本号（激活完成时同步保存）
+          if (!seenSourceVer) {
+            try { seenSourceVer = response.headers.get('X-Source-Version') } catch (e) { /* 忽略 */ }
           }
 
           const envelopeText = await response.text()
@@ -179,7 +190,8 @@ export const AppGuardModal: React.FC = () => {
       return false
     }
 
-    // 💾 激活成功后，把「免重验窗口」写入本地：缓存到卡密到期为止（服务端没下发则兜底 24h，上限 30 天）
+    // 💾 激活成功后，把「免重验窗口」和「音源版本」写入本地
+    // 有效期：缓存到卡密到期为止（服务端没下发则兜底 24h，上限 30 天）
     const saveAuthCache = async () => {
       try {
         const expMs = Date.parse(seenExpiresAt || '')
@@ -188,6 +200,10 @@ export const AppGuardModal: React.FC = () => {
         if (capped > 0) {
           await AsyncStorage.setItem(AUTH_VALID_UNTIL_KEY, String(Date.now() + capped))
         }
+        if (seenSourceVer != null) {
+          await AsyncStorage.setItem(SOURCE_VER_KEY, seenSourceVer)
+        }
+        await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL))
       } catch (e) {
         console.error('写入授权缓存失败:', e)
       }
@@ -213,6 +229,28 @@ export const AppGuardModal: React.FC = () => {
     return false
   }
 
+  // 🔄 音源版本轮询：每 24h 一次轻请求；版本变了 → 强制重新激活拉取最新音源
+  const checkSourceVersion = async (token: string): Promise<void> => {
+    try {
+      const nextCheckAt = await AsyncStorage.getItem(SOURCE_VER_CHECK_KEY)
+      if (nextCheckAt && Date.now() < Number(nextCheckAt)) return
+
+      const res = await fetchWithTimeout(`${AUTH_HOSTS[0]}${SOURCE_VER_PATH}`)
+      await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL))
+      if (res.status !== 200) return
+      const j = JSON.parse(await res.text())
+      const serverVer = typeof j?.version === 'string' ? j.version : ''
+      const storedVer = await AsyncStorage.getItem(SOURCE_VER_KEY)
+      if (serverVer && serverVer !== storedVer) {
+        console.log(`音源版本变化(${storedVer ?? '无'} → ${serverVer})，触发重新激活`)
+        await verifyAndActivate(token, false)
+      }
+    } catch (e) {
+      // 网络/解析失败 → 静默继续用本地缓存（下次再试）
+      try { await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL)) } catch (e2) { /* 忽略 */ }
+    }
+  }
+
   // 启动时读取本地卡密
   useEffect(() => {
     const initCheck = async () => {
@@ -220,9 +258,10 @@ export const AppGuardModal: React.FC = () => {
         const savedToken = await AsyncStorage.getItem(AUTH_INFO_KEY)
         const validUntil = await AsyncStorage.getItem(AUTH_VALID_UNTIL_KEY)
         if (savedToken && validUntil && Date.now() < Number(validUntil)) {
-          // ✅ 本期免重验窗口内：直接放行，不联网（远程封卡最迟在窗口到期时生效）
+          // ✅ 本期免重验窗口内：直接放行，不联网（音源版本由每 24h 的轻轮询兜底刷新）
           setLocked(false)
           setChecking(false)
+          checkSourceVersion(savedToken) // 异步后台查,不阻塞进入
           return
         }
         if (savedToken) {
