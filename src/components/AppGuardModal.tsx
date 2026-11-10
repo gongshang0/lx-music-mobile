@@ -166,7 +166,7 @@ export const AppGuardModal: React.FC = () => {
           // 🏷️ 统一改名为「线路1/线路2」，设置 → 自定义源列表按下标对号入座
           scriptCode = scriptCode.replace(
             /(\*\s*@name\s+)[^\r\n]*/,
-            line === 1 ? '$1线路1 · 酷我单版' : '$1线路2 · 5音聚合秒切',
+            line === 1 ? '$1线路1' : '$1线路2',
           )
 
           if (!importUserApi || !setUserApi) {
