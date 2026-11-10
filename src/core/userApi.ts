@@ -30,6 +30,7 @@ export const setUserApiList: typeof action['setUserApiList'] = (list) => {
 export const importUserApi = async(script: string) => {
   const info = await addUserApi(script)
   action.addUserApi(info)
+  return info  // fix: 原实现漏了 return，导致调用方(加密音源激活流程)拿到 undefined 误判导入失败
 }
 
 export const removeUserApi = async(ids: string[]) => {
