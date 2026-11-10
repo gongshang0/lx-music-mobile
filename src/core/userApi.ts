@@ -29,7 +29,13 @@ export const setUserApiList: typeof action['setUserApiList'] = (list) => {
 
 export const importUserApi = async(script: string) => {
   const info = await addUserApi(script)
-  action.addUserApi(info)
+  // 🧹 同名旧条目去重：音源更新重新导入时，把旧版本条目清掉，列表只保留最新一条
+  const dupIds = state.list.filter(item => item.id !== info.id && item.name === info.name).map(item => item.id)
+  if (dupIds.length) {
+    await removeUserApi(dupIds)
+  } else {
+    action.addUserApi(info)
+  }
   return info  // fix: 原实现漏了 return，导致调用方(加密音源激活流程)拿到 undefined 误判导入失败
 }
 
