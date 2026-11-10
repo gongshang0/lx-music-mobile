@@ -18,11 +18,12 @@ import { aesDecrypt } from '@/utils/nativeModules/crypto'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
 const DEVICE_ID_KEY = '@lx_app_device_id'
+// 💾 免重验窗口凭据：服务端随响应头下发卡密有效期，到期前启动不再联网验证
+const AUTH_VALID_UNTIL_KEY = '@lx_app_auth_valid_until'
 
-// 💡 自定义域名为首选（国内可直连），workers.dev 为备用自动降级
+// 💡 大陆可直连的自定义域名（workers.dev 在大陆被运营商阻断，备用域名只会白等超时，已移除）
 const AUTH_HOSTS = [
   'https://lx-music-auth.gongshangss.dpdns.org',
-  'https://lx-music-auth.gongshang13.workers.dev',
 ]
 
 // 🎵 音源加密下发端点：返回 AES-256-CBC 加密信封(JSON)
@@ -32,7 +33,7 @@ const ENC_SOURCE_PATH = '/enc-source'
 const SOURCE_KEY_B64 = 'KKFuyGf5ncF6UQaWM8LrrfmKjqQRBoFott4x9pUTulA='
 const SOURCE_AES_MODE = 'AES/CBC/PKCS7Padding'
 
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 8000
 
 const fetchWithTimeout = async (url: string) => {
   const controller = new AbortController()
@@ -68,6 +69,7 @@ export const AppGuardModal: React.FC = () => {
     const deviceId = await getDeviceId()
     let lastError: unknown = null
     let line1Fetched = false
+    let seenExpiresAt: string | null = null
 
     // 尝试某一线路:先走主域名,网络级失败再试备用域名
     const tryLine = async (line: number): Promise<boolean> => {
@@ -91,6 +93,11 @@ export const AppGuardModal: React.FC = () => {
           }
 
           if (line === 1) line1Fetched = true
+
+          // 📅 记录服务端下发的卡密有效期（免重验缓存凭据，永久卡会是远期时间）
+          if (!seenExpiresAt) {
+            try { seenExpiresAt = response.headers.get('X-Card-Expires-At') } catch (e) { /* 忽略 */ }
+          }
 
           const envelopeText = await response.text()
           if (!envelopeText) {
@@ -172,11 +179,25 @@ export const AppGuardModal: React.FC = () => {
       return false
     }
 
+    // 💾 激活成功后，把「免重验窗口」写入本地：缓存到卡密到期为止（服务端没下发则兜底 24h，上限 30 天）
+    const saveAuthCache = async () => {
+      try {
+        const expMs = Date.parse(seenExpiresAt || '')
+        const ttl = Number.isFinite(expMs) ? Math.max(0, expMs - Date.now()) : 24 * 3600 * 1000
+        const capped = Math.min(ttl, 30 * 24 * 3600 * 1000)
+        if (capped > 0) {
+          await AsyncStorage.setItem(AUTH_VALID_UNTIL_KEY, String(Date.now() + capped))
+        }
+      } catch (e) {
+        console.error('写入授权缓存失败:', e)
+      }
+    }
+
     // 主线路优先,失败再降级线路2
     const ok1 = await tryLine(1)
-    if (ok1) return true
+    if (ok1) { await saveAuthCache(); return true }
     const ok2 = await tryLine(2)
-    if (ok2) return true
+    if (ok2) { await saveAuthCache(); return true }
 
     if (showAlert) {
       const errName = lastError instanceof Error ? lastError.name : 'Unknown'
@@ -185,8 +206,8 @@ export const AppGuardModal: React.FC = () => {
       Alert.alert(
         isAbort ? '网络连接异常 🔌' : '激活失败 ✖',
         isAbort
-          ? `15秒内未能连接到鉴权服务器。\n错误类型: ${errName}`
-          : `错误类型: ${errName}\n详情: ${errMsg || '(空)'}${line1Fetched && ok1 === false ? '\n(线路1/线路2 均已尝试)' : ''}`,
+          ? `8秒内未能连接到鉴权服务器。请检查网络后重试。\n错误类型: ${errName}`
+          : `错误类型: ${errName}\n详情: ${errMsg || '(空)'}${line1Fetched ? '\n(线路1/线路2 均已尝试)' : ''}`,
       )
     }
     return false
@@ -197,6 +218,13 @@ export const AppGuardModal: React.FC = () => {
     const initCheck = async () => {
       try {
         const savedToken = await AsyncStorage.getItem(AUTH_INFO_KEY)
+        const validUntil = await AsyncStorage.getItem(AUTH_VALID_UNTIL_KEY)
+        if (savedToken && validUntil && Date.now() < Number(validUntil)) {
+          // ✅ 本期免重验窗口内：直接放行，不联网（远程封卡最迟在窗口到期时生效）
+          setLocked(false)
+          setChecking(false)
+          return
+        }
         if (savedToken) {
           const success = await verifyAndActivate(savedToken, false)
           if (success) {
@@ -204,6 +232,8 @@ export const AppGuardModal: React.FC = () => {
             setChecking(false)
             return
           }
+          // 重新验证失败 → 缓存凭据作废，进入手动激活界面
+          await AsyncStorage.removeItem(AUTH_VALID_UNTIL_KEY)
         }
       } catch (e) {
         console.error('读取本地授权缓存失败:', e)
