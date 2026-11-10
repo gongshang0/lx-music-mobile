@@ -561,7 +561,7 @@ export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo>
   const apiInfo: LX.UserApi.UserApiInfo = {
     id: `user_api_${Math.random().toString().substring(2, 5)}_${Date.now()}`,
     ...scriptInfo,
-    allowShowUpdateAlert: true,
+    allowShowUpdateAlert: false, // 🔒 私有分发版：禁止音源从 @homepage 自拉更新（更新统一走服务端版本轮询推送）
   }
   userApis.push(apiInfo)
   await saveDataMultiple([
