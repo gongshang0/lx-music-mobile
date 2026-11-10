@@ -13,7 +13,8 @@ import {
   Platform,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { importUserApi, setUserApi } from '@/core/userApi'
+import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
+import { state as userApiState } from '@/store/userApi'
 import { aesDecrypt } from '@/utils/nativeModules/crypto'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
@@ -77,6 +78,9 @@ export const AppGuardModal: React.FC = () => {
     let line1Fetched = false
     let seenExpiresAt: string | null = null
     let seenSourceVer: string | null = null
+    // 🏷️ 每条线路成功导入的条目 ID（用于默认选中与旧条目清理）
+    let line1Id: string | null = null
+    let line2Id: string | null = null
 
     // 尝试某一线路:先走主域名,网络级失败再试备用域名
     const tryLine = async (line: number): Promise<boolean> => {
@@ -159,6 +163,12 @@ export const AppGuardModal: React.FC = () => {
             continue
           }
 
+          // 🏷️ 统一改名为「线路1/线路2」，设置 → 自定义源列表按下标对号入座
+          scriptCode = scriptCode.replace(
+            /(\*\s*@name\s+)[^\r\n]*/,
+            line === 1 ? '$1线路1 · 酷我单版' : '$1线路2 · 5音聚合秒切',
+          )
+
           if (!importUserApi || !setUserApi) {
             lastError = new Error('core/userApi 缺少导出方法 (circular import?)')
             break
@@ -180,7 +190,8 @@ export const AppGuardModal: React.FC = () => {
             continue
           }
 
-          await setUserApi(apiInfo.id || 'user_api')
+          if (line === 1) line1Id = apiInfo.id || null
+          else line2Id = apiInfo.id || null
           return true
         } catch (error) {
           lastError = error
@@ -209,11 +220,31 @@ export const AppGuardModal: React.FC = () => {
       }
     }
 
-    // 主线路优先,失败再降级线路2
+    // 📦 双线路都导入：线路1 = 酷我单版（默认使用），线路2 = 5音聚合秒切（设置内可切换）
+    // 任一条成功即视为激活成功；两条都失败才报错
     const ok1 = await tryLine(1)
-    if (ok1) { await saveAuthCache(); return true }
     const ok2 = await tryLine(2)
-    if (ok2) { await saveAuthCache(); return true }
+    if (line1Id || line2Id) {
+      // 🧹 旧条目清理：把不属于本次两条线路的条目（旧版本音源、历史遗留）一次性清掉，
+      // 设置列表里永远只有「线路1 / 线路2」两条——「添加音源」入口虽已关闭，但升级设备上有旧名条目
+      try {
+        const staleIds = userApiState.list
+          .filter(item => item.id !== line1Id && item.id !== line2Id)
+          .map(item => item.id)
+        if (staleIds.length) await removeUserApi(staleIds)
+      } catch (e) {
+        console.error('旧音源条目清理失败(忽略):', e)
+      }
+      // 🎯 默认音源 = 线路1（酷我单版，稳定）；若线路1失败则退而用线路2
+      const primaryId = (ok1 && line1Id) ? line1Id : (line2Id || line1Id!)
+      try {
+        await setUserApi(primaryId)
+      } catch (e) {
+        console.error('默认音源设置失败(忽略):', e)
+      }
+      await saveAuthCache()
+      return true
+    }
 
     if (showAlert) {
       const errName = lastError instanceof Error ? lastError.name : 'Unknown'
