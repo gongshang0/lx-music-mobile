@@ -8,7 +8,6 @@ import { windowSizeTools } from './utils/windowSizeTools'
 import { listenLaunchEvent } from './navigation/regLaunchedEvent'
 import { tipDialog } from './utils/tools'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { importUserApi } from '@/core/userApi'
 
 const AUTH_INFO_KEY = '@lx_app_auth_info'
 const BASE_AUTH_URL = 'https://lx123.gongshangss.dpdns.org/source.js'
@@ -42,21 +41,25 @@ export const verifyAndLoadAuth = async (token: string): Promise<AuthData | null>
   const targetUrl = `${BASE_AUTH_URL}?token=${encodeURIComponent(cleanToken)}`
 
   try {
-    const response = await fetch(targetUrl, { method: 'GET' })
+    // ⏱️ 8 秒超时：上游挂起时不能把启动流程卡死（原实现无超时，会一直阻塞进主页）
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    let response: Response
+    try {
+      response = await fetch(targetUrl, { method: 'GET', signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
+    }
     if (response.status === 200) {
       const text = await response.text()
       try {
         const json = JSON.parse(text)
         if (json.code === 200 && json.data) {
           const authData: AuthData = json.data
-          if (authData.sourceScript && importUserApi) {
-            await importUserApi(authData.sourceScript)
-          }
           return authData
         }
       } catch (e) {
-        if (text && importUserApi) {
-          await importUserApi(text)
+        if (text) {
           const isPermanent = cleanToken.toLowerCase().startsWith('vip_')
           return {
             token: cleanToken,
@@ -129,8 +132,9 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
     await handleInit()
     if (!isInited) return
 
-    // 后台尝试读取 Token 并验证
-    await checkAppGuardBackground()
+    // 后台尝试读取 Token 并验证（🚀 不 await：此链路只设置全局授权标记，无人读取，
+    // 也不负责安装音源（激活由 AppGuardModal 全权负责），绝不能阻塞进主页）
+    void checkAppGuardBackground()
 
     // 无论是否授权，都正常推入 HomeScreen（未授权时由 HomeScreen 的 Modal 遮罩拦住并提供输入框）
     await navigations.pushHomeScreen().then(() => {

@@ -503,7 +503,17 @@ export const removeSyncHostHistory = async(index: number) => {
 }
 
 let userApis: LX.UserApi.UserApiInfo[] = []
-export const getUserApiList = async(): Promise<LX.UserApi.UserApiInfo[]> => {
+// 🔐 音源列表互斥锁：userApis 是共享内存数组，「改列表 + 落盘」必须原子化。
+// 并行激活（线路1/线路2 同时导入）、启动后台校验、版本轮询重激活可能并发执行，
+// 交错的 AsyncStorage 写入会互相覆盖（丢新条目 / 复活已删条目），故全部操作排队串行。
+let userApiOpChain: Promise<unknown> = Promise.resolve()
+const withUserApiLock = async<T>(fn: () => Promise<T>): Promise<T> => {
+  const run = userApiOpChain.then(fn, fn)
+  // 吞掉业务错误保持链条可用，错误仍由调用方的 run 正常抛出
+  userApiOpChain = run.catch(() => {})
+  return run
+}
+export const getUserApiList = async(): Promise<LX.UserApi.UserApiInfo[]> => withUserApiLock(async() => {
   userApis = await getData<LX.UserApi.UserApiInfo[]>(userApiPrefix) ?? []
 
   // 移除 1.7.1 及之前版本的脚本数据被意外存储到列表中的问题
@@ -517,7 +527,7 @@ export const getUserApiList = async(): Promise<LX.UserApi.UserApiInfo[]> => {
   if (updated) void saveData(userApiPrefix, userApis)
 
   return [...userApis]
-}
+})
 export const getUserApiScript = async(id: string): Promise<string> => {
   const script = await getData<string>(`${userApiPrefix}${id}`) ?? ''
   return script
@@ -551,7 +561,7 @@ const matchInfo = (scriptInfo: string) => {
 
   return infos as Record<keyof typeof INFO_NAMES, string>
 }
-export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo> => {
+export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo> => withUserApiLock(async() => {
   const result = /^\/\*[\S|\s]+?\*\//.exec(script)
   if (!result) throw new Error(global.i18n.t('user_api_add_failed_tip'))
 
@@ -569,24 +579,28 @@ export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo>
     [`${userApiPrefix}${apiInfo.id}`, script],
   ])
   return apiInfo
-}
-export const removeUserApi = async(ids: string[]) => {
+})
+export const removeUserApi = async(ids: string[]): Promise<LX.UserApi.UserApiInfo[]> => withUserApiLock(async() => {
   if (!userApis) return []
   const _ids: string[] = []
   for (let index = userApis.length - 1; index > -1; index--) {
-    if (ids.includes(userApis[index].id)) {
-      _ids.push(`${userApiPrefix}${userApis[index].id}`)
+    const id = userApis[index].id
+    if (ids.includes(id)) {
+      _ids.push(`${userApiPrefix}${id}`)
       userApis.splice(index, 1)
-      ids.splice(index, 1)
+      // 🐛 修复：原来写的是 ids.splice(index, 1)——用列表下标错删调用方数组元素，
+      // 会导致同批次其他待删条目漏删；按 id 精确移除
+      const idx = ids.indexOf(id)
+      if (idx > -1) ids.splice(idx, 1)
     }
   }
   await saveData(userApiPrefix, userApis)
   if (_ids.length) await removeDataMultiple(_ids)
   return [...userApis]
-}
-export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean) => {
+})
+export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean): Promise<void> => withUserApiLock(async() => {
   const targetApi = userApis?.find(api => api.id == id)
   if (!targetApi) return
   targetApi.allowShowUpdateAlert = enable
   await saveData(userApiPrefix, userApis)
-}
+})
