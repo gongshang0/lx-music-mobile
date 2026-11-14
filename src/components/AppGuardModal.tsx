@@ -226,13 +226,16 @@ export const AppGuardModal: React.FC = () => {
       }
     }
 
-    // 📦 双线路都导入：线路1 = 酷我单版（默认使用），线路2 = 5音聚合秒切（设置内可切换）
-    // 任一条成功即视为激活成功；两条都失败才报错
-    const ok1 = await tryLine(1)
-    const ok2 = await tryLine(2)
-    if (line1Id || line2Id) {
+    // 📦 双线路并行拉取：线路1 = 酷我单版（默认使用），线路2 = 5音聚合秒切（设置内可切换）
+    // 🚀 线路1 成功立即放行进入 App，不等线路2；线路2 转后台收尾（失败 30s 后静默重试一次），
+    //    音源自动更新走 24h 版本轮询触发的重新激活，不受影响
+    const p1 = tryLine(1)
+    const p2 = tryLine(2)
+    const ok1 = await p1
+    if (ok1 && line1Id) {
       // 🧹 旧条目清理：把不属于本次两条线路的条目（旧版本音源、历史遗留）一次性清掉，
       // 设置列表里永远只有「线路1 / 线路2」两条——「添加音源」入口虽已关闭，但升级设备上有旧名条目
+      // （此刻线路2 若已抢先导入，其条目 ID 已被记录，同样会排除）
       try {
         const staleIds = userApiState.list
           .filter(item => item.id !== line1Id && item.id !== line2Id)
@@ -241,10 +244,47 @@ export const AppGuardModal: React.FC = () => {
       } catch (e) {
         console.error('旧音源条目清理失败(忽略):', e)
       }
-      // 🎯 默认音源 = 线路1（酷我单版，稳定）；若线路1失败则退而用线路2
-      const primaryId = (ok1 && line1Id) ? line1Id : (line2Id || line1Id!)
+      // 🎯 默认音源 = 线路1（酷我单版，稳定）
       try {
-        await setUserApi(primaryId)
+        await setUserApi(line1Id)
+      } catch (e) {
+        console.error('默认音源设置失败(忽略):', e)
+      }
+      await saveAuthCache()
+      // 🌙 线路2 后台收尾：落定后统一清理旧条目；失败不打扰用户，等下次激活/版本轮询自动重试
+      void (async() => {
+        let ok2Retry = await p2.catch(() => false)
+        if (!ok2Retry) {
+          await new Promise(resolve => setTimeout(resolve, 30000))
+          ok2Retry = await tryLine(2).catch(() => false)
+        }
+        try {
+          const staleIds = userApiState.list
+            .filter(item => item.id !== line1Id && item.id !== line2Id)
+            .map(item => item.id)
+          if (staleIds.length) await removeUserApi(staleIds)
+        } catch (e) {
+          console.error('旧音源条目清理失败(忽略):', e)
+        }
+        if (!ok2Retry) console.log('线路2 后台导入未成功，等待下次激活/版本轮询自动重试')
+      })()
+      return true
+    }
+
+    // 线路1 失败 → 退而用线路2；两条都失败才报错
+    const ok2 = await p2
+    if (ok2 && line2Id) {
+      // 🧹 旧条目清理（同上）
+      try {
+        const staleIds = userApiState.list
+          .filter(item => item.id !== line1Id && item.id !== line2Id)
+          .map(item => item.id)
+        if (staleIds.length) await removeUserApi(staleIds)
+      } catch (e) {
+        console.error('旧音源条目清理失败(忽略):', e)
+      }
+      try {
+        await setUserApi(line2Id)
       } catch (e) {
         console.error('默认音源设置失败(忽略):', e)
       }
