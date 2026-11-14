@@ -26,9 +26,9 @@ export const detectSource = (input: string): SourceType | null => {
   const text = input.trim()
   if (!text) return null
 
-  if (/163\.com/i.test(text)) return 'wy'
+  if (/163\.com|163cn\.tv/i.test(text)) return 'wy'
   if (/qq\.com/i.test(text)) return 'tx'
-  if (/kugou\.com/i.test(text)) return 'kg'
+  if (/kugou\.com|t1\.kugou\.com/i.test(text)) return 'kg'
   if (/kuwo\.cn|kuwo\.com/i.test(text)) return 'kw'
   if (/migu\.cn/i.test(text)) return 'mg'
 

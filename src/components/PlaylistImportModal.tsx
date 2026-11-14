@@ -37,8 +37,9 @@ export default forwardRef<PlaylistImportModalType, {
   }))
 
   const hide = useCallback(() => {
+    if (importing) return
     dialogRef.current?.setVisible(false)
-  }, [])
+  }, [importing])
 
   const handleHide = useCallback(() => {
     setText('')
@@ -57,16 +58,16 @@ export default forwardRef<PlaylistImportModalType, {
     setImporting(true)
     try {
       await onImport(input)
-      hide()
+      dialogRef.current?.setVisible(false)
     } catch (err: any) {
       setError(err?.message ?? '导入失败，请稍后重试')
     } finally {
       setImporting(false)
     }
-  }, [importing, text, onImport, hide])
+  }, [importing, text, onImport])
 
   return (
-    <Dialog ref={dialogRef} title="导入外部歌单" onHide={handleHide}>
+    <Dialog ref={dialogRef} title="导入外部歌单" onHide={handleHide} bgHide={!importing} keyHide={!importing} closeBtn={!importing}>
       <View style={styles.content}>
         <Text size={12} color={theme['c-font-label']}>
           支持粘贴 网易云 / QQ音乐 / 酷狗 / 酷我 / 咪咕 的歌单分享链接或歌单 ID
@@ -79,7 +80,9 @@ export default forwardRef<PlaylistImportModalType, {
             placeholder="粘贴歌单分享链接或 ID"
             size={13}
             clearBtn
-            onSubmitEditing={handleImport}
+            multiline
+            textAlignVertical="top"
+            style={styles.input}
           />
         </View>
         {
@@ -88,7 +91,7 @@ export default forwardRef<PlaylistImportModalType, {
             : null
         }
         <View style={styles.btns}>
-          <Button style={styles.btnCancel} onPress={hide}>
+          <Button style={styles.btnCancel} onPress={hide} disabled={importing}>
             <Text size={13} color={theme['c-font']}>取消</Text>
           </Button>
           <Button style={{ ...styles.btnImport, backgroundColor: theme['c-primary'] }} onPress={handleImport} disabled={importing}>
@@ -108,12 +111,17 @@ const styles = createStyle({
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginTop: 10,
     paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 4,
     backgroundColor: 'rgba(0,0,0,0.06)',
-    height: 40,
+    height: 72,
+  },
+  input: {
+    height: 64,
+    paddingTop: 4,
   },
   error: {
     marginTop: 8,
