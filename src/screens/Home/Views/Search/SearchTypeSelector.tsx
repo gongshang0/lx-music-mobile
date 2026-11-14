@@ -39,7 +39,7 @@ export default () => {
       {
         list.map(t => (
           <TouchableOpacity style={styles.button} onPress={() => { handleTypeChange(t.id) }} key={t.id}>
-            <Text style={{ ...styles.buttonText, borderBottomColor: type == t.id ? theme['c-primary-background-active'] : 'transparent' }} color={type == t.id ? theme['c-primary-font-active'] : theme['c-font']}>{t.label}</Text>
+            <Text style={{ ...styles.buttonText, borderBottomColor: type == t.id ? theme['c-content-background'] : 'transparent' }} color={type == t.id ? theme['c-content-background'] : theme['c-primary-light-1000-alpha-300']}>{t.label}</Text>
           </TouchableOpacity>
         ))
       }

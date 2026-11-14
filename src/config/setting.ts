@@ -103,6 +103,14 @@ export const initSetting = async() => {
     }
   }
 
+  // 一次性迁移：默认绿主题切换为新默认「活力蓝」（只处理仍是旧默认值 green 的用户，
+  // 显式选过其他主题的不受影响；迁移标记保证只执行一次，用户后续改回 green 不会再被翻转）
+  if (setting && !(await getData<boolean>('@theme_kugou_migrated'))) {
+    if (setting['theme.id'] == 'green') setting['theme.id'] = 'kugou'
+    if (setting['theme.lightId'] == 'green') setting['theme.lightId'] = 'kugou'
+    void saveData('@theme_kugou_migrated', true)
+  }
+
   // console.log(setting)
   const updatedSetting = updateSetting(setting, true)
   void saveData(storageDataPrefix.setting, updatedSetting.setting)
