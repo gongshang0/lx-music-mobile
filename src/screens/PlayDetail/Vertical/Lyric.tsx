@@ -97,8 +97,8 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
       {activeLine == lineNum ? (
         <KaraokeText
           text={line.text}
-          progress={Math.max(0, karaokeProgress)}
-          posMs={karaokePosMs}
+          progress={Math.max(0, progress)}
+          posMs={posMs}
           lineTime={line.time}
           activeColor={getOnGradientColor(theme)}
           inactiveColor={getOnGradientAlphaColor(theme, 600)}
