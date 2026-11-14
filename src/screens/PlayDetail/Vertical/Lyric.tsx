@@ -7,6 +7,7 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { AnimatedColorText } from '@/components/common/Text'
+import { getOnGradientAlphaColor, getOnGradientColor } from '@/theme/gradient'
 import { KaraokeText, useKaraokeProgress } from '@/components/common/KaraokeText'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
@@ -73,12 +74,12 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
   const colors = useMemo(() => {
     const active = activeLine == lineNum
     return active ? [
-      theme['c-content-background'],
-      theme['c-primary-light-1000-alpha-400'],
+      getOnGradientColor(theme),
+      getOnGradientAlphaColor(theme, 400),
       1,
     ] as const : [
-      theme['c-primary-light-1000-alpha-600'],
-      theme['c-primary-light-1000-alpha-500'],
+      getOnGradientAlphaColor(theme, 600),
+      getOnGradientAlphaColor(theme, 500),
       0.6,
     ] as const
   }, [activeLine, lineNum, theme])
@@ -99,8 +100,8 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
           progress={Math.max(0, karaokeProgress)}
           posMs={karaokePosMs}
           lineTime={line.time}
-          activeColor={theme['c-content-background']}
-          inactiveColor={theme['c-primary-light-1000-alpha-600']}
+          activeColor={getOnGradientColor(theme)}
+          inactiveColor={getOnGradientAlphaColor(theme, 600)}
           size={size}
           lineHeight={lineHeight}
           textAlign={textAlign}

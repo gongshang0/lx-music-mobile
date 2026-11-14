@@ -5,6 +5,7 @@ import Progress from '@/components/player/ProgressBar'
 import Status from './Status'
 import { useProgress } from '@/store/player/hook'
 import { useTheme } from '@/store/theme/hook'
+import { getOnGradientAlphaColor, getOnGradientColor } from '@/theme/gradient'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { useBufferProgress } from '@/plugins/player'
@@ -14,12 +15,12 @@ import { useBufferProgress } from '@/plugins/player'
 const PlayTimeCurrent = ({ timeStr }: { timeStr: string }) => {
   const theme = useTheme()
   // console.log(timeStr)
-  return <Text color={theme['c-primary-light-1000-alpha-400']}>{timeStr}</Text>
+  return <Text color={getOnGradientAlphaColor(theme, 400)}>{timeStr}</Text>
 }
 
 const PlayTimeMax = memo(({ timeStr }: { timeStr: string }) => {
   const theme = useTheme()
-  return <Text color={theme['c-primary-light-1000-alpha-400']}>{timeStr}</Text>
+  return <Text color={getOnGradientAlphaColor(theme, 400)}>{timeStr}</Text>
 })
 
 export default () => {
@@ -36,11 +37,11 @@ export default () => {
           progress={progress}
           duration={maxPlayTime}
           buffered={buffered}
-          bgColor={theme['c-primary-light-1000-alpha-700']}
-          bufferedColor={theme['c-primary-light-1000-alpha-600']}
-          activeColor={theme['c-content-background']}
-          dragActiveColor={theme['c-primary-light-1000-alpha-400']}
-          dotColor={theme['c-content-background']}
+          bgColor={getOnGradientAlphaColor(theme, 700)}
+          bufferedColor={getOnGradientAlphaColor(theme, 600)}
+          activeColor={getOnGradientColor(theme)}
+          dragActiveColor={getOnGradientAlphaColor(theme, 400)}
+          dotColor={getOnGradientColor(theme)}
         />
       </View>
       <View style={styles.info}>

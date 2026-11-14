@@ -13,6 +13,7 @@ import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
+import { getPageGradientColors } from '@/theme/gradient'
 
 const LyricPage = ({ activeIndex }: { activeIndex: number }) => {
   const initedRef = useRef(false)
@@ -75,7 +76,7 @@ export default memo(({ componentId }: { componentId: string }) => {
     <LinearGradient
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
-      colors={[theme['c-primary-dark-700'], theme['c-primary'], theme['c-primary-light-300']]}
+      colors={getPageGradientColors(theme)}
       style={styles.gradient}>
       <Header />
       <View style={styles.container}>

@@ -1,6 +1,7 @@
 import { TouchableOpacity, View } from 'react-native'
 import { Icon } from '@/components/common/Icon'
 import { useTheme } from '@/store/theme/hook'
+import { getOnGradientColor } from '@/theme/gradient'
 // import { useIsPlay } from '@/store/player/hook'
 import { playNext, playPrev, togglePlay } from '@/core/player/player'
 import { useIsPlay } from '@/store/player/hook'
@@ -16,7 +17,7 @@ const PrevBtn = ({ size }: { size: number }) => {
   }
   return (
     <TouchableOpacity style={{ ...styles.cotrolBtn, width: size, height: size }} activeOpacity={0.5} onPress={handlePlayPrev}>
-      <Icon name='prevMusic' color={theme['c-content-background']} rawSize={size * 0.7} />
+      <Icon name='prevMusic' color={getOnGradientColor(theme)} rawSize={size * 0.7} />
     </TouchableOpacity>
   )
 }
@@ -27,7 +28,7 @@ const NextBtn = ({ size }: { size: number }) => {
   }
   return (
     <TouchableOpacity style={{ ...styles.cotrolBtn, width: size, height: size }} activeOpacity={0.5} onPress={handlePlayNext}>
-      <Icon name='nextMusic' color={theme['c-content-background']} rawSize={size * 0.7} />
+      <Icon name='nextMusic' color={getOnGradientColor(theme)} rawSize={size * 0.7} />
     </TouchableOpacity>
   )
 }
@@ -37,7 +38,7 @@ const TogglePlayBtn = ({ size }: { size: number }) => {
   const isPlay = useIsPlay()
   return (
     <TouchableOpacity style={{ ...styles.cotrolBtn, width: size, height: size }} activeOpacity={0.5} onPress={togglePlay}>
-      <Icon name={isPlay ? 'pause' : 'play'} color={theme['c-content-background']} rawSize={size * 0.7} />
+      <Icon name={isPlay ? 'pause' : 'play'} color={getOnGradientColor(theme)} rawSize={size * 0.7} />
     </TouchableOpacity>
   )
 }

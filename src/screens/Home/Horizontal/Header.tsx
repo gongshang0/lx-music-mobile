@@ -10,6 +10,7 @@ import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { useTheme } from '@/store/theme/hook'
+import { getHeaderGradientColors, getOnGradientColor } from '@/theme/gradient'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
@@ -38,14 +39,14 @@ const LeftHeader = () => {
     <LinearGradient
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      colors={[theme['c-primary'], theme['c-primary-light-300']]}
+      colors={getHeaderGradientColors(theme)}
       style={{
         ...styles.container,
         height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
         paddingTop: statusBarHeight,
       }}>
       <View style={styles.left}>
-        <Text style={styles.leftTitle} size={18} color={theme['c-content-background']}>{t(id)}</Text>
+        <Text style={styles.leftTitle} size={18} color={getOnGradientColor(theme)}>{t(id)}</Text>
       </View>
       {headerComponents[id] ?? null}
 
@@ -73,14 +74,14 @@ const RightHeader = () => {
     <LinearGradient
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      colors={[theme['c-primary'], theme['c-primary-light-300']]}
+      colors={getHeaderGradientColors(theme)}
       style={{
         ...styles.container,
         height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
         paddingTop: statusBarHeight,
       }}>
       <View style={styles.left}>
-        <Text style={styles.rightTitle} size={18} color={theme['c-content-background']}>{t(id)}</Text>
+        <Text style={styles.rightTitle} size={18} color={getOnGradientColor(theme)}>{t(id)}</Text>
       </View>
       {headerComponents[id] ?? null}
       {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
@@ -95,7 +96,7 @@ const Header = () => {
 
   return (
     <>
-      <StatusBar />
+      <StatusBar barStyle="light-content" />
       {
         drawerLayoutPosition == 'left'
           ? <LeftHeader />

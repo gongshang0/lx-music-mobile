@@ -6,6 +6,7 @@ import { type SearchType } from '@/store/search/state'
 import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
+import { getOnGradientAlphaColor, getOnGradientColor } from '@/theme/gradient'
 import { getSearchSetting } from '@/utils/data'
 import { BorderWidths } from '@/theme'
 
@@ -39,7 +40,7 @@ export default () => {
       {
         list.map(t => (
           <TouchableOpacity style={styles.button} onPress={() => { handleTypeChange(t.id) }} key={t.id}>
-            <Text style={{ ...styles.buttonText, borderBottomColor: type == t.id ? theme['c-content-background'] : 'transparent' }} color={type == t.id ? theme['c-content-background'] : theme['c-primary-light-1000-alpha-300']}>{t.label}</Text>
+            <Text style={{ ...styles.buttonText, borderBottomColor: type == t.id ? getOnGradientColor(theme) : 'transparent' }} color={type == t.id ? getOnGradientColor(theme) : getOnGradientAlphaColor(theme, 300)}>{t.label}</Text>
           </TouchableOpacity>
         ))
       }
