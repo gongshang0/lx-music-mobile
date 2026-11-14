@@ -1,4 +1,4 @@
-import TrackPlayer, { Capability, Event, RepeatMode, State } from 'react-native-track-player'
+import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { playMusic as handlePlayMusic } from './playList'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
@@ -248,7 +248,11 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
  */
 // export const playState = callback => TrackPlayer.addEventListener('playback-state', callback)
 
-export const updateOptions = async(options = {
+// 通知栏小图标: 原生侧 getIcon 按 Bundle{uri} 读取 drawable 名(类型标注 number 与实际行为不符, 需断言)
+// 对应资源 android/app/src/main/res/drawable/notification_icon.xml (白色播放三角剪影)
+const notificationIcon = { uri: 'notification_icon' } as unknown as MetadataOptions['icon']
+
+export const updateOptions = async(options: MetadataOptions = {
   // Whether the player should stop running when the app is closed on Android
   // stopWithApp: true,
 
@@ -287,6 +291,7 @@ export const updateOptions = async(options = {
   // previousIcon: require('./previous-icon.png'),
   // nextIcon: require('./next-icon.png'),
   // icon: notificationIcon, // The notification icon
+  icon: notificationIcon, // 🎵 通知栏显示应用图标(白色播放三角剪影)
 }) => {
   return TrackPlayer.updateOptions(options)
 }

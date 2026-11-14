@@ -120,7 +120,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
           try {
             let playUrl = musicInfo.url
             if (!playUrl) {
-              playUrl = await getMusicUrl(musicInfo.source, musicInfo)
+              playUrl = await getMusicUrl({ musicInfo })
             }
             await handleDownloadSong(playUrl, musicInfo.name, musicInfo.singer)
           } catch (error) {

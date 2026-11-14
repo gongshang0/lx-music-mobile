@@ -2,6 +2,7 @@ import { createStyle } from '@/utils/tools'
 import { View } from 'react-native'
 import PlayModeBtn from './PlayModeBtn'
 import MusicAddBtn from './MusicAddBtn'
+import DownloadBtn from './DownloadBtn'
 import DesktopLyricBtn from './DesktopLyricBtn'
 import CommentBtn from './CommentBtn'
 
@@ -10,6 +11,7 @@ export default () => {
     <View style={styles.container}>
       <DesktopLyricBtn />
       <MusicAddBtn />
+      <DownloadBtn />
       <PlayModeBtn />
       <CommentBtn />
     </View>

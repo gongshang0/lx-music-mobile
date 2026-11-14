@@ -1,0 +1,13 @@
+<!-- 通知栏小图标（Android 要求 alpha 剪影）: 白色播放三角, 对应 JS 侧 updateOptions 的 icon: { uri: 'notification_icon' } -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineJoin="round"
+        android:pathData="M36,24 L76,48 L36,72 Z" />
+</vector>
