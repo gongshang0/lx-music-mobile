@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { View, TouchableOpacity, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type FlatListProps } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
@@ -17,7 +17,8 @@ import Loading from '@/components/common/Loading'
 // 新增：引入导入歌单所需的工具和创建 API
 import { tipDialog } from '@/utils/tools'
 import { importPlaylistFromUrl } from '@/utils/playlistImporter'
-import { createUserList } from '@/core/list'
+import { createList } from '@/core/list'
+import PlaylistImportModal, { type PlaylistImportModalType } from '@/components/PlaylistImportModal'
 
 type FlatListType = FlatListProps<LX.List.MyListInfo>
 
@@ -88,42 +89,26 @@ export default ({ onShowMenu }: {
     })
   }
 
-  // 新增：全平台歌单导入处理逻辑
-  const handleImportPlaylist = () => {
-    void tipDialog({
-      title: '🎵 导入外部歌单',
-      message: '支持粘贴 网易云、QQ音乐、酷狗、酷我、咪咕 的歌单链接或 ID：',
-      btnText: '一键解析导入',
-      bgClose: true,
-      isPrompt: true, // 启用输入框模式
-      placeholder: '在此粘贴歌单链接或 ID...',
-    }).then(async (inputText?: string) => {
-      if (!inputText || !inputText.trim()) return
+  // 新增：全平台歌单导入处理逻辑（弹窗内持有输入框，这里只负责解析与建单）
+  const importModalRef = useRef<PlaylistImportModalType>(null)
 
-      try {
-        const playlistData = await importPlaylistFromUrl(inputText.trim())
+  const handleShowImportModal = useCallback(() => {
+    importModalRef.current?.show()
+  }, [])
 
-        if (playlistData && playlistData.list) {
-          await createUserList({
-            name: playlistData.name,
-            list: playlistData.list,
-          })
-
-          void tipDialog({
-            title: '导入成功 🎉',
-            message: `成功导入歌单《${playlistData.name}》\n共包含 ${playlistData.count} 首歌曲！`,
-            btnText: '查看歌单',
-          })
-        }
-      } catch (error: any) {
-        void tipDialog({
-          title: '导入失败',
-          message: error.message || '解析歌单超时或遇到错误',
-          btnText: '重新输入',
-        })
-      }
+  const handleImport = useCallback(async(input: string) => {
+    const playlistData = await importPlaylistFromUrl(input)
+    await createList({
+      name: playlistData.name,
+      list: playlistData.list,
+      source: playlistData.source,
     })
-  }
+    void tipDialog({
+      title: '导入成功 🎉',
+      message: `成功导入歌单《${playlistData.name}》\n共包含 ${playlistData.count} 首歌曲！`,
+      btnText: '知道了',
+    })
+  }, [])
 
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     void saveListPosition(LIST_SCROLL_POSITION_KEY, nativeEvent.contentOffset.y)
@@ -158,10 +143,13 @@ export default ({ onShowMenu }: {
     <View style={styles.container}>
       {/* 新增：顶部导入歌单快捷操作栏 */}
       <View style={styles.importBar}>
-        <TouchableOpacity style={styles.importBtn} onPress={handleImportPlaylist} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.importBtn} onPress={handleShowImportModal} activeOpacity={0.8}>
           <Text style={styles.importBtnText}>+ 导入外部歌单</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 新增：导入歌单弹窗（真实输入框） */}
+      <PlaylistImportModal ref={importModalRef} onImport={handleImport} />
 
       <FlatList
         ref={flatListRef}
