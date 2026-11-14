@@ -102,11 +102,7 @@ export const AppGuardModal: React.FC = () => {
             lastError = new Error(
               `HTTP ${response.status} @ 线路${line} ${host}\n服务端返回: ${errorText.slice(0, 120)}`,
             )
-            if (line === 1) {
-              // 线路1 拿不到:先试备用域名,再降级线路2
-              if (response.status >= 400 && response.status < 500) continue
-              continue
-            }
+            // 线路1 失败：先试备用域名，全部域名失败后由外层降级线路2
             continue
           }
 
@@ -394,7 +390,9 @@ export const AppGuardModal: React.FC = () => {
             return
           }
           // 重新验证失败 → 缓存凭据作废，进入手动激活界面
+          // 把本地保存的激活码回填到输入框，避免用户凭记忆重新输入
           await AsyncStorage.removeItem(AUTH_VALID_UNTIL_KEY)
+          setInputToken(savedToken)
         }
       } catch (e) {
         console.error('读取本地授权缓存失败:', e)
@@ -521,7 +519,12 @@ export const AppGuardModal: React.FC = () => {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  // 中间层 KeyboardAvoidingView 需要自带居中（外层渐变容器的居中不会传递给它的子元素）
+  flex: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   centerScreen: {
     flex: 1,
     justifyContent: 'center',
