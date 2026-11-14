@@ -73,12 +73,12 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
   const colors = useMemo(() => {
     const active = activeLine == lineNum
     return active ? [
-      theme['c-primary'],
-      theme['c-primary-alpha-200'],
+      theme['c-content-background'],
+      theme['c-primary-light-1000-alpha-400'],
       1,
     ] as const : [
-      theme['c-350'],
-      theme['c-300'],
+      theme['c-primary-light-1000-alpha-600'],
+      theme['c-primary-light-1000-alpha-500'],
       0.6,
     ] as const
   }, [activeLine, lineNum, theme])
@@ -99,8 +99,8 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
           progress={Math.max(0, karaokeProgress)}
           posMs={karaokePosMs}
           lineTime={line.time}
-          activeColor={theme['c-primary']}
-          inactiveColor={theme['c-350']}
+          activeColor={theme['c-content-background']}
+          inactiveColor={theme['c-primary-light-1000-alpha-600']}
           size={size}
           lineHeight={lineHeight}
           textAlign={textAlign}

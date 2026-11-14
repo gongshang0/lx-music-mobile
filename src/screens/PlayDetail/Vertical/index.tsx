@@ -8,10 +8,11 @@ import Player from './Player'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import Pic from './Pic'
 import Lyric from './Lyric'
+import LinearGradient from 'react-native-linear-gradient'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
-// import { useTheme } from '@/store/theme/hook'
+import { useTheme } from '@/store/theme/hook'
 
 const LyricPage = ({ activeIndex }: { activeIndex: number }) => {
   const initedRef = useRef(false)
@@ -29,7 +30,7 @@ const LyricPage = ({ activeIndex }: { activeIndex: number }) => {
 
 // global.iskeep = false
 export default memo(({ componentId }: { componentId: string }) => {
-  // const theme = useTheme()
+  const theme = useTheme()
   const [pageIndex, setPageIndex] = useState(0)
   const showLyricRef = useRef(false)
 
@@ -71,7 +72,11 @@ export default memo(({ componentId }: { componentId: string }) => {
   }, [])
 
   return (
-    <>
+    <LinearGradient
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      colors={[theme['c-primary-dark-700'], theme['c-primary'], theme['c-primary-light-300']]}
+      style={styles.gradient}>
       <Header />
       <View style={styles.container}>
         <PagerView
@@ -92,11 +97,14 @@ export default memo(({ componentId }: { componentId: string }) => {
         </View> */}
         <Player />
       </View>
-    </>
+    </LinearGradient>
   )
 })
 
 const styles = createStyle({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     flexDirection: 'column',

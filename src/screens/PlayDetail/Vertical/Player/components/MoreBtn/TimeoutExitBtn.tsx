@@ -16,7 +16,7 @@ export default memo(() => {
 
   return (
     <>
-      <Btn icon="music_time" color={timeInfo.active ? theme['c-primary-font-active'] : theme['c-font-label']} onPress={handleShow} />
+      <Btn icon="music_time" color={timeInfo.active ? theme['c-content-background'] : theme['c-primary-light-1000-alpha-600']} onPress={handleShow} />
       <TimeoutExitEditModal ref={modalRef} timeInfo={timeInfo} />
     </>
   )

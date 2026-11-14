@@ -2,6 +2,7 @@ import { TouchableOpacity } from 'react-native'
 import { Icon } from '@/components/common/Icon'
 import { createStyle } from '@/utils/tools'
 import { scaleSizeH } from '@/utils/pixelRatio'
+import { useTheme } from '@/store/theme/hook'
 import { HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
 
 export const HEADER_HEIGHT = scaleSizeH(_HEADER_HEIGHT)
@@ -11,9 +12,10 @@ export default ({ icon, color, onPress }: {
   color?: string
   onPress: () => void
 }) => {
+  const theme = useTheme()
   return (
     <TouchableOpacity onPress={onPress} style={{ ...styles.button, width: HEADER_HEIGHT }}>
-      <Icon name={icon} color={color} size={18} />
+      <Icon name={icon} color={color ?? theme['c-content-background']} size={18} />
     </TouchableOpacity>
   )
 }

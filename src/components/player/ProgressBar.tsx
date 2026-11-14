@@ -8,16 +8,16 @@ import { Icon } from '@/components/common/Icon'
 // import { AppColors } from '@/theme'
 
 
-const DefaultBar = memo(() => {
+const DefaultBar = memo(({ color }: { color?: string }) => {
   const theme = useTheme()
 
-  return <View style={{ ...styles.progressBar, backgroundColor: theme['c-primary-light-300-alpha-800'], position: 'absolute', width: '100%', left: 0, top: 0 }}></View>
+  return <View style={{ ...styles.progressBar, backgroundColor: color ?? theme['c-primary-light-300-alpha-800'], position: 'absolute', width: '100%', left: 0, top: 0 }}></View>
 })
 
-const BufferedBar = memo(({ progress }: { progress: number }) => {
+const BufferedBar = memo(({ progress, color }: { progress: number, color?: string }) => {
   // console.log(bufferedProgress)
   const theme = useTheme()
-  return <View style={{ ...styles.progressBar, backgroundColor: theme['c-primary-light-400-alpha-700'], position: 'absolute', width: `${progress * 100}%`, left: 0, top: 0 }}></View>
+  return <View style={{ ...styles.progressBar, backgroundColor: color ?? theme['c-primary-light-400-alpha-700'], position: 'absolute', width: `${progress * 100}%`, left: 0, top: 0 }}></View>
 })
 
 
@@ -62,10 +62,15 @@ const PreassBar = memo(({ onDragState, setDragProgress, onSetProgress }: {
 })
 
 
-const Progress = ({ progress, duration, buffered }: {
+const Progress = ({ progress, duration, buffered, bgColor, bufferedColor, activeColor, dragActiveColor, dotColor }: {
   progress: number
   duration: number
   buffered: number
+  bgColor?: string
+  bufferedColor?: string
+  activeColor?: string
+  dragActiveColor?: string
+  dotColor?: string
 }) => {
   // const { progress: bufferProgress } = usePlayTimeBuffer()
   const theme = useTheme()
@@ -94,20 +99,20 @@ const Progress = ({ progress, duration, buffered }: {
   return (
     <View style={styles.progress}>
       <View>
-        <DefaultBar />
-        <BufferedBar progress={buffered} />
+        <DefaultBar color={bgColor} />
+        <BufferedBar progress={buffered} color={bufferedColor} />
         {
           draging
             ? (
                 <>
-                  <View style={{ ...styles.progressBar, backgroundColor: theme['c-primary-light-100-alpha-700'], width: progressStr, position: 'absolute', left: 0, top: 0 }} />
-                  <View style={{ ...styles.progressBar, backgroundColor: theme['c-primary-light-100-alpha-600'], width: `${dragProgress * 100}%`, position: 'absolute', left: 0, top: 0 }}>
-                    <Icon name="full_stop" color={theme['c-primary-light-100']} rawSize={progressDotSize} style={progressDotStyle} />
+                  <View style={{ ...styles.progressBar, backgroundColor: dragActiveColor ?? theme['c-primary-light-100-alpha-700'], width: progressStr, position: 'absolute', left: 0, top: 0 }} />
+                  <View style={{ ...styles.progressBar, backgroundColor: activeColor ?? theme['c-primary-light-100-alpha-600'], width: `${dragProgress * 100}%`, position: 'absolute', left: 0, top: 0 }}>
+                    <Icon name="full_stop" color={dotColor ?? theme['c-primary-light-100']} rawSize={progressDotSize} style={progressDotStyle} />
                   </View>
                 </>
               ) : (
-                <View style={{ ...styles.progressBar, backgroundColor: theme['c-primary-light-100-alpha-400'], width: progressStr, position: 'absolute', left: 0, top: 0 }}>
-                  <Icon name="full_stop" color={theme['c-primary-light-100']} rawSize={progressDotSize} style={progressDotStyle} />
+                <View style={{ ...styles.progressBar, backgroundColor: activeColor ?? theme['c-primary-light-100-alpha-400'], width: progressStr, position: 'absolute', left: 0, top: 0 }}>
+                  <Icon name="full_stop" color={dotColor ?? theme['c-primary-light-100']} rawSize={progressDotSize} style={progressDotStyle} />
                 </View>
               )
         }
