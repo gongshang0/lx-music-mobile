@@ -13,6 +13,7 @@ import {
   Platform,
   Linking,
 } from 'react-native'
+import LinearGradient from 'react-native-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
 import { state as userApiState } from '@/store/userApi'
@@ -427,11 +428,17 @@ export const AppGuardModal: React.FC = () => {
 
   if (checking) {
     return (
-      <View style={styles.centerScreen}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-        <ActivityIndicator size="large" color="#3B82F6" />
+      <LinearGradient
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0.25, y: 1 }}
+        locations={[0, 0.62, 1]}
+        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
+        style={styles.centerScreen}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <ActivityIndicator size="large" color="#FFFFFF" />
         <Text style={styles.loadingText}>正核验设备激活授权...</Text>
-      </View>
+      </LinearGradient>
     )
   }
 
@@ -447,122 +454,145 @@ export const AppGuardModal: React.FC = () => {
         // 🔒 阻止物理返回键关闭门禁
       }}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <LinearGradient
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0.25, y: 1 }}
+        locations={[0, 0.62, 1]}
+        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
         style={styles.maskContainer}
       >
-        <View style={styles.card}>
-          <View style={styles.iconBadge}>
-            <Text style={styles.badgeText}>⚡</Text>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <View style={styles.card}>
+            <LinearGradient
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              colors={['#267DFF', '#5CA9FF']}
+              style={styles.iconBadge}
+            >
+              <Text style={styles.badgeText}>⚡</Text>
+            </LinearGradient>
+
+            <Text style={styles.title}>设备激活中心</Text>
+            <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="在此粘贴或输入激活授权码"
+                placeholderTextColor="#B6BDCA"
+                value={inputToken}
+                onChangeText={setInputToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.buttonWrapper, verifying && styles.buttonDisabled]}
+              onPress={handleVerifySubmit}
+              disabled={verifying}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                colors={['#267DFF', '#5CA9FF']}
+                style={styles.button}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.buttonText}>验证激活并进入</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-
-          <Text style={styles.title}>设备激活中心</Text>
-          <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
-
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="在此粘贴或输入激活授权码"
-              placeholderTextColor="#94A3B8"
-              value={inputToken}
-              onChangeText={setInputToken}
-              autoCapitalize="none"
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, verifying && styles.buttonDisabled]}
-            onPress={handleVerifySubmit}
-            disabled={verifying}
-            activeOpacity={0.85}
-          >
-            {verifying ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>验证激活并进入</Text>
-            )}
-          </TouchableOpacity>
 
           <Text style={styles.footerTip}>Cloudflare 高速鉴权网关保护中</Text>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   centerScreen: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: { marginTop: 16, fontSize: 14, color: '#64748B' },
+  loadingText: { marginTop: 16, fontSize: 14, color: 'rgba(255, 255, 255, 0.8)' },
   maskContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 26,
   },
   card: {
     width: '100%',
     maxWidth: 360,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 22,
     padding: 28,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowColor: '#0A2350',
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.35,
+    shadowRadius: 30,
+    elevation: 12,
   },
   iconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#EFF6FF',
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
+    marginBottom: 14,
+    shadowColor: '#267DFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  badgeText: { fontSize: 26 },
-  title: { fontSize: 22, fontWeight: '700', color: '#0F172A', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#64748B', marginBottom: 24, textAlign: 'center' },
-  inputWrapper: { width: '100%', marginBottom: 20 },
+  badgeText: { fontSize: 24, color: '#FFFFFF' },
+  title: { fontSize: 19, fontWeight: '700', color: '#222A38', marginBottom: 4 },
+  subtitle: { fontSize: 12, color: '#8A93A3', marginBottom: 22, textAlign: 'center' },
+  inputWrapper: { width: '100%', marginBottom: 14 },
   input: {
     width: '100%',
-    height: 52,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    color: '#0F172A',
-    fontSize: 15,
+    height: 48,
+    backgroundColor: '#F8F9FC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    color: '#222A38',
+    fontSize: 14,
     borderWidth: 1.5,
-    borderColor: '#3B82F6',
+    borderColor: '#DDE3EE',
   },
+  buttonWrapper: {
+    width: '100%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#267DFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.38,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  buttonDisabled: { opacity: 0.6 },
   button: {
     width: '100%',
-    height: 52,
-    backgroundColor: '#2563EB',
-    borderRadius: 14,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  buttonDisabled: { backgroundColor: '#93C5FD' },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  footerTip: { marginTop: 22, fontSize: 11, color: '#94A3B8' },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 2 },
+  footerTip: { marginTop: 22, fontSize: 11, color: 'rgba(255, 255, 255, 0.55)' },
 })
