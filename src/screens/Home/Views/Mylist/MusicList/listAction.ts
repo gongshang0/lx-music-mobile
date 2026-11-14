@@ -12,6 +12,8 @@ import { type Metadata } from '@/components/MetadataEditModal'
 import musicSdk from '@/utils/musicSdk'
 import { getListMusicSync } from '@/utils/listManage'
 import { clearMusicUrlByMusic } from '@/utils/data'
+import { getMusicUrl } from '@/core/music'
+import { handleDownloadSong } from '@/utils/downloadManager'
 
 export const handlePlay = (listId: SelectInfo['listId'], index: SelectInfo['index']) => {
   void playList(listId, index)
@@ -172,4 +174,19 @@ export const handleToggleSource = async(listId: string, musicInfo: LX.Music.Musi
     }
   })
   return true
+}
+
+// 📥 列表菜单下载：实时解析直链并复用下载执行器(内含卡密权限拦截)，与播放页下载按钮同源
+export const handleDownloadMusic = async(musicInfo: SelectInfo['musicInfo']) => {
+  if (musicInfo.source == 'local') {
+    toast('本地歌曲无需下载')
+    return
+  }
+  try {
+    const url = await getMusicUrl({ musicInfo })
+    const oldInfo = toOldMusicInfo(musicInfo)
+    await handleDownloadSong(url, oldInfo.name, oldInfo.singer)
+  } catch {
+    toast('获取下载链接失败，请稍后再试')
+  }
 }
