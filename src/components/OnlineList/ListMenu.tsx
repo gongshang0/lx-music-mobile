@@ -23,7 +23,6 @@ export interface ListMenuProps {
   onMusicSourceDetail: (selectInfo: SelectInfo) => void
   onRemoveCache: (selectInfo: SelectInfo) => void
   onDislikeMusic: (selectInfo: SelectInfo) => void
-  onDownload: (selectInfo: SelectInfo) => void // 📥 1. 补充下载回调类型定义
 }
 export interface ListMenuType {
   show: (selectInfo: SelectInfo, position: Position) => void
@@ -59,7 +58,6 @@ export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, re
     const menu = [
       { action: 'play', label: t('play') },
       { action: 'playLater', label: t('play_later') },
-      { action: 'download', label: '下载歌曲' }, // 📥 2. 启用下载菜单项
       { action: 'add', label: t('add_to') },
       { action: 'copyName', label: t('copy_name') },
       { action: 'musicSourceDetail', label: t('music_source_detail') },
@@ -103,9 +101,6 @@ export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, re
         break
       case 'dislike':
         props.onDislikeMusic(selectInfo)
-        break
-      case 'download': // 📥 3. 关联分发点击动作
-        props.onDownload(selectInfo)
         break
       default:
         break
