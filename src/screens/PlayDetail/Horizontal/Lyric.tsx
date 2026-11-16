@@ -23,10 +23,9 @@ interface LineProps {
   lineNum: number
   activeLine: number
   progress: number
-  posMs: number
   onLayout: (lineNum: number, height: number, width: number) => void
 }
-const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: LineProps) => {
+const LrcLine = memo(({ line, lineNum, activeLine, progress, onLayout }: LineProps) => {
   const theme = useTheme()
   const lrcFontSize = useSettingValue('playDetail.horizontal.style.lrcFontSize')
   const textAlign = useSettingValue('playDetail.style.align')
@@ -59,8 +58,6 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
         <KaraokeText
           text={line.text}
           progress={Math.max(0, progress)}
-          posMs={posMs}
-          lineTime={line.time}
           activeColor={theme['c-primary']}
           inactiveColor={theme['c-350']}
           size={size}
@@ -95,7 +92,7 @@ const wait = async() => new Promise(resolve => setTimeout(resolve, 100))
 export default () => {
   const lyricLines = useLrcSet()
   const { line } = useLrcPlay()
-  const { progress: karaokeProgress, posMs: karaokePosMs } = useKaraokeProgress(lyricLines, line)
+  const karaokeProgress = useKaraokeProgress(lyricLines, line)
   const flatListRef = useRef<FlatList>(null)
   const playLineRef = useRef<PlayLineType>(null)
   const isPauseScrollRef = useRef(true)
@@ -278,7 +275,7 @@ export default () => {
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => {
     return (
-      <LrcLine line={item} lineNum={index} activeLine={line} progress={karaokeProgress} posMs={karaokePosMs} onLayout={handleLineLayout} />
+      <LrcLine line={item} lineNum={index} activeLine={line} progress={karaokeProgress} onLayout={handleLineLayout} />
     )
   }
   const getkey: FlatListType['keyExtractor'] = (item, index) => `${index}${item.text}`

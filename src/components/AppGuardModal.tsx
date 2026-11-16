@@ -13,7 +13,6 @@ import {
   Platform,
   Linking,
 } from 'react-native'
-import LinearGradient from 'react-native-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
 import { state as userApiState } from '@/store/userApi'
@@ -102,7 +101,11 @@ export const AppGuardModal: React.FC = () => {
             lastError = new Error(
               `HTTP ${response.status} @ 线路${line} ${host}\n服务端返回: ${errorText.slice(0, 120)}`,
             )
-            // 线路1 失败：先试备用域名，全部域名失败后由外层降级线路2
+            if (line === 1) {
+              // 线路1 拿不到:先试备用域名,再降级线路2
+              if (response.status >= 400 && response.status < 500) continue
+              continue
+            }
             continue
           }
 
@@ -223,16 +226,13 @@ export const AppGuardModal: React.FC = () => {
       }
     }
 
-    // 📦 双线路并行拉取：线路1 = 酷我单版（默认使用），线路2 = 5音聚合秒切（设置内可切换）
-    // 🚀 线路1 成功立即放行进入 App，不等线路2；线路2 转后台收尾（失败 30s 后静默重试一次），
-    //    音源自动更新走 24h 版本轮询触发的重新激活，不受影响
-    const p1 = tryLine(1)
-    const p2 = tryLine(2)
-    const ok1 = await p1
-    if (ok1 && line1Id) {
+    // 📦 双线路都导入：线路1 = 酷我单版（默认使用），线路2 = 5音聚合秒切（设置内可切换）
+    // 任一条成功即视为激活成功；两条都失败才报错
+    const ok1 = await tryLine(1)
+    const ok2 = await tryLine(2)
+    if (line1Id || line2Id) {
       // 🧹 旧条目清理：把不属于本次两条线路的条目（旧版本音源、历史遗留）一次性清掉，
       // 设置列表里永远只有「线路1 / 线路2」两条——「添加音源」入口虽已关闭，但升级设备上有旧名条目
-      // （此刻线路2 若已抢先导入，其条目 ID 已被记录，同样会排除）
       try {
         const staleIds = userApiState.list
           .filter(item => item.id !== line1Id && item.id !== line2Id)
@@ -241,47 +241,10 @@ export const AppGuardModal: React.FC = () => {
       } catch (e) {
         console.error('旧音源条目清理失败(忽略):', e)
       }
-      // 🎯 默认音源 = 线路1（酷我单版，稳定）
+      // 🎯 默认音源 = 线路1（酷我单版，稳定）；若线路1失败则退而用线路2
+      const primaryId = (ok1 && line1Id) ? line1Id : (line2Id || line1Id!)
       try {
-        await setUserApi(line1Id)
-      } catch (e) {
-        console.error('默认音源设置失败(忽略):', e)
-      }
-      await saveAuthCache()
-      // 🌙 线路2 后台收尾：落定后统一清理旧条目；失败不打扰用户，等下次激活/版本轮询自动重试
-      void (async() => {
-        let ok2Retry = await p2.catch(() => false)
-        if (!ok2Retry) {
-          await new Promise(resolve => setTimeout(resolve, 30000))
-          ok2Retry = await tryLine(2).catch(() => false)
-        }
-        try {
-          const staleIds = userApiState.list
-            .filter(item => item.id !== line1Id && item.id !== line2Id)
-            .map(item => item.id)
-          if (staleIds.length) await removeUserApi(staleIds)
-        } catch (e) {
-          console.error('旧音源条目清理失败(忽略):', e)
-        }
-        if (!ok2Retry) console.log('线路2 后台导入未成功，等待下次激活/版本轮询自动重试')
-      })()
-      return true
-    }
-
-    // 线路1 失败 → 退而用线路2；两条都失败才报错
-    const ok2 = await p2
-    if (ok2 && line2Id) {
-      // 🧹 旧条目清理（同上）
-      try {
-        const staleIds = userApiState.list
-          .filter(item => item.id !== line1Id && item.id !== line2Id)
-          .map(item => item.id)
-        if (staleIds.length) await removeUserApi(staleIds)
-      } catch (e) {
-        console.error('旧音源条目清理失败(忽略):', e)
-      }
-      try {
-        await setUserApi(line2Id)
+        await setUserApi(primaryId)
       } catch (e) {
         console.error('默认音源设置失败(忽略):', e)
       }
@@ -390,9 +353,7 @@ export const AppGuardModal: React.FC = () => {
             return
           }
           // 重新验证失败 → 缓存凭据作废，进入手动激活界面
-          // 把本地保存的激活码回填到输入框，避免用户凭记忆重新输入
           await AsyncStorage.removeItem(AUTH_VALID_UNTIL_KEY)
-          setInputToken(savedToken)
         }
       } catch (e) {
         console.error('读取本地授权缓存失败:', e)
@@ -426,17 +387,11 @@ export const AppGuardModal: React.FC = () => {
 
   if (checking) {
     return (
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.25, y: 1 }}
-        locations={[0, 0.62, 1]}
-        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
-        style={styles.centerScreen}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <ActivityIndicator size="large" color="#FFFFFF" />
+      <View style={styles.centerScreen}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+        <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>正核验设备激活授权...</Text>
-      </LinearGradient>
+      </View>
     )
   }
 
@@ -452,150 +407,122 @@ export const AppGuardModal: React.FC = () => {
         // 🔒 阻止物理返回键关闭门禁
       }}
     >
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.25, y: 1 }}
-        locations={[0, 0.62, 1]}
-        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.maskContainer}
       >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.flex}
-        >
-          <View style={styles.card}>
-            <LinearGradient
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              colors={['#267DFF', '#5CA9FF']}
-              style={styles.iconBadge}
-            >
-              <Text style={styles.badgeText}>⚡</Text>
-            </LinearGradient>
-
-            <Text style={styles.title}>设备激活中心</Text>
-            <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
-
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="在此粘贴或输入激活授权码"
-                placeholderTextColor="#B6BDCA"
-                value={inputToken}
-                onChangeText={setInputToken}
-                autoCapitalize="none"
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.buttonWrapper, verifying && styles.buttonDisabled]}
-              onPress={handleVerifySubmit}
-              disabled={verifying}
-              activeOpacity={0.85}
-            >
-              <LinearGradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                colors={['#267DFF', '#5CA9FF']}
-                style={styles.button}
-              >
-                {verifying ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.buttonText}>验证激活并进入</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+        <View style={styles.card}>
+          <View style={styles.iconBadge}>
+            <Text style={styles.badgeText}>⚡</Text>
           </View>
 
+          <Text style={styles.title}>设备激活中心</Text>
+          <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
+
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder="在此粘贴或输入激活授权码"
+              placeholderTextColor="#94A3B8"
+              value={inputToken}
+              onChangeText={setInputToken}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, verifying && styles.buttonDisabled]}
+            onPress={handleVerifySubmit}
+            disabled={verifying}
+            activeOpacity={0.85}
+          >
+            {verifying ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>验证激活并进入</Text>
+            )}
+          </TouchableOpacity>
+
           <Text style={styles.footerTip}>Cloudflare 高速鉴权网关保护中</Text>
-        </KeyboardAvoidingView>
-      </LinearGradient>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-  // 中间层 KeyboardAvoidingView 需要自带居中（外层渐变容器的居中不会传递给它的子元素）
-  flex: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   centerScreen: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: { marginTop: 16, fontSize: 14, color: 'rgba(255, 255, 255, 0.8)' },
+  loadingText: { marginTop: 16, fontSize: 14, color: '#64748B' },
   maskContainer: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 26,
+    paddingHorizontal: 24,
   },
   card: {
     width: '100%',
     maxWidth: 360,
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 28,
     alignItems: 'center',
-    shadowColor: '#0A2350',
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.35,
-    shadowRadius: 30,
-    elevation: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
   },
   iconBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
-    shadowColor: '#267DFF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
-  badgeText: { fontSize: 24, color: '#FFFFFF' },
-  title: { fontSize: 19, fontWeight: '700', color: '#222A38', marginBottom: 4 },
-  subtitle: { fontSize: 12, color: '#8A93A3', marginBottom: 22, textAlign: 'center' },
-  inputWrapper: { width: '100%', marginBottom: 14 },
+  badgeText: { fontSize: 26 },
+  title: { fontSize: 22, fontWeight: '700', color: '#0F172A', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#64748B', marginBottom: 24, textAlign: 'center' },
+  inputWrapper: { width: '100%', marginBottom: 20 },
   input: {
     width: '100%',
-    height: 48,
-    backgroundColor: '#F8F9FC',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    color: '#222A38',
-    fontSize: 14,
+    height: 52,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    color: '#0F172A',
+    fontSize: 15,
     borderWidth: 1.5,
-    borderColor: '#DDE3EE',
+    borderColor: '#3B82F6',
   },
-  buttonWrapper: {
-    width: '100%',
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#267DFF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.38,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  buttonDisabled: { opacity: 0.6 },
   button: {
     width: '100%',
-    height: 48,
-    borderRadius: 24,
+    height: 52,
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 2 },
-  footerTip: { marginTop: 22, fontSize: 11, color: 'rgba(255, 255, 255, 0.55)' },
+  buttonDisabled: { backgroundColor: '#93C5FD' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  footerTip: { marginTop: 22, fontSize: 11, color: '#94A3B8' },
 })

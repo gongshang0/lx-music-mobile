@@ -29,11 +29,11 @@ export default ({ componentId }: { componentId: string }) => {
   // console.log('render pic')
 
   const style = useMemo(() => {
-    const imgWidth = Math.min(winWidth * 0.86, (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.56)
+    const imgWidth = Math.min(winWidth * 0.8, (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.5)
     return {
       width: imgWidth,
       height: imgWidth,
-      borderRadius: 20,
+      borderRadius: 2,
     }
   }, [statusBarHeight, winHeight, winWidth])
 

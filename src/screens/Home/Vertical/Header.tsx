@@ -2,9 +2,7 @@ import { View, TouchableOpacity } from 'react-native'
 // import Button from '@/components/common/Button'
 // import { navigations } from '@/navigation'
 // import { BorderWidths } from '@/theme'
-import LinearGradient from 'react-native-linear-gradient'
 import { useTheme } from '@/store/theme/hook'
-import { getHeaderGradientColors, getOnGradientColor } from '@/theme/gradient'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
@@ -39,21 +37,17 @@ const LeftHeader = () => {
   }
 
   return (
-    <LinearGradient
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      colors={getHeaderGradientColors(theme)}
-      style={{
-        ...styles.container,
-        height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
-        paddingTop: statusBarHeight,
-      }}>
+    <View style={{
+      ...styles.container,
+      height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
+      paddingTop: statusBarHeight,
+    }}>
       <View style={styles.left}>
         <TouchableOpacity style={styles.btn} onPress={openMenu}>
-          <Icon color={getOnGradientColor(theme)} name="menu" size={18} />
+          <Icon color={theme['c-font']} name="menu" size={18} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.titleBtn} onPress={openMenu}>
-          <Text style={styles.leftTitle} size={18} color={getOnGradientColor(theme)}>{t(id)}</Text>
+          <Text style={styles.leftTitle} size={18}>{t(id)}</Text>
         </TouchableOpacity>
       </View>
       {headerComponents[id] ?? null}
@@ -61,7 +55,7 @@ const LeftHeader = () => {
       {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
         <Icon style={{ ...styles.btnText, color: theme['c-font'] }} name="setting" size={styles.btnText.fontSize} />
       </TouchableOpacity> */}
-    </LinearGradient>
+    </View>
   )
 }
 
@@ -82,28 +76,24 @@ const RightHeader = () => {
     global.app_event.changeMenuVisible(true)
   }
   return (
-    <LinearGradient
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      colors={getHeaderGradientColors(theme)}
-      style={{
-        ...styles.container,
-        height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
-        paddingTop: statusBarHeight,
-      }}>
+    <View style={{
+      ...styles.container,
+      height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
+      paddingTop: statusBarHeight,
+    }}>
       <View style={styles.left}>
         <TouchableOpacity style={styles.titleBtn} onPress={openMenu}>
-          <Text style={styles.rightTitle} size={18} color={getOnGradientColor(theme)}>{t(id)}</Text>
+          <Text style={styles.rightTitle} size={18}>{t(id)}</Text>
         </TouchableOpacity>
       </View>
       {headerComponents[id] ?? null}
       <TouchableOpacity style={styles.btn} onPress={openMenu}>
-        <Icon color={getOnGradientColor(theme)} name="menu" size={18} />
+        <Icon color={theme['c-font']} name="menu" size={18} />
       </TouchableOpacity>
       {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
         <Icon style={{ ...styles.btnText, color: theme['c-font'] }} name="setting" size={styles.btnText.fontSize} />
       </TouchableOpacity> */}
-    </LinearGradient>
+    </View>
   )
 }
 
@@ -112,7 +102,7 @@ const Header = () => {
 
   return (
     <>
-      <StatusBar barStyle="light-content" />
+      <StatusBar />
       {
         drawerLayoutPosition == 'left'
           ? <LeftHeader />

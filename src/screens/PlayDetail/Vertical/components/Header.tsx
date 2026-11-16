@@ -5,7 +5,6 @@ import { View, StyleSheet } from 'react-native'
 import { pop } from '@/navigation'
 import StatusBar from '@/components/common/StatusBar'
 import { useTheme } from '@/store/theme/hook'
-import { getOnGradientAlphaColor, getOnGradientColor } from '@/theme/gradient'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import Text from '@/components/common/Text'
 import { scaleSizeH } from '@/utils/pixelRatio'
@@ -26,8 +25,8 @@ const Title = () => {
 
   return (
     <View style={styles.titleContent}>
-      <Text numberOfLines={1} style={styles.title} color={getOnGradientColor(theme)}>{musicInfo.name}</Text>
-      <Text numberOfLines={1} style={styles.title} size={12} color={getOnGradientAlphaColor(theme, 400)}>{musicInfo.singer}</Text>
+      <Text numberOfLines={1} style={styles.title}>{musicInfo.name}</Text>
+      <Text numberOfLines={1} style={styles.title} size={12} color={theme['c-font-label']}>{musicInfo.singer}</Text>
     </View>
   )
 }
@@ -45,7 +44,7 @@ export default memo(() => {
 
   return (
     <View style={{ height: HEADER_HEIGHT + statusBarHeight, paddingTop: statusBarHeight }} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_header}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar />
       <View style={styles.container}>
         <Btn icon="chevron-left" onPress={back} />
         <Title />

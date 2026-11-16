@@ -7,7 +7,6 @@ import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { AnimatedColorText } from '@/components/common/Text'
-import { getOnGradientAlphaColor, getOnGradientColor } from '@/theme/gradient'
 import { KaraokeText, useKaraokeProgress } from '@/components/common/KaraokeText'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
@@ -61,10 +60,9 @@ interface LineProps {
   lineNum: number
   activeLine: number
   progress: number
-  posMs: number
   onLayout: (lineNum: number, height: number, width: number) => void
 }
-const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: LineProps) => {
+const LrcLine = memo(({ line, lineNum, activeLine, progress, onLayout }: LineProps) => {
   const theme = useTheme()
   const lrcFontSize = useSettingValue('playDetail.vertical.style.lrcFontSize')
   const textAlign = useSettingValue('playDetail.style.align')
@@ -74,12 +72,12 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
   const colors = useMemo(() => {
     const active = activeLine == lineNum
     return active ? [
-      getOnGradientColor(theme),
-      getOnGradientAlphaColor(theme, 400),
+      theme['c-primary'],
+      theme['c-primary-alpha-200'],
       1,
     ] as const : [
-      getOnGradientAlphaColor(theme, 600),
-      getOnGradientAlphaColor(theme, 500),
+      theme['c-350'],
+      theme['c-300'],
       0.6,
     ] as const
   }, [activeLine, lineNum, theme])
@@ -98,10 +96,8 @@ const LrcLine = memo(({ line, lineNum, activeLine, progress, posMs, onLayout }: 
         <KaraokeText
           text={line.text}
           progress={Math.max(0, progress)}
-          posMs={posMs}
-          lineTime={line.time}
-          activeColor={getOnGradientColor(theme)}
-          inactiveColor={getOnGradientAlphaColor(theme, 600)}
+          activeColor={theme['c-primary']}
+          inactiveColor={theme['c-350']}
           size={size}
           lineHeight={lineHeight}
           textAlign={textAlign}
@@ -134,7 +130,7 @@ const wait = async() => new Promise(resolve => setTimeout(resolve, 100))
 export default () => {
   const lyricLines = useLrcSet()
   const { line } = useLrcPlay()
-  const { progress: karaokeProgress, posMs: karaokePosMs } = useKaraokeProgress(lyricLines, line)
+  const karaokeProgress = useKaraokeProgress(lyricLines, line)
   const flatListRef = useRef<FlatList>(null)
   const playLineRef = useRef<PlayLineType>(null)
   const isPauseScrollRef = useRef(true)
@@ -317,7 +313,7 @@ export default () => {
 
   const renderItem: FlatListType['renderItem'] = ({ item, index }) => {
     return (
-      <LrcLine line={item} lineNum={index} activeLine={line} progress={karaokeProgress} posMs={karaokePosMs} onLayout={handleLineLayout} />
+      <LrcLine line={item} lineNum={index} activeLine={line} progress={karaokeProgress} onLayout={handleLineLayout} />
     )
   }
   const getkey: FlatListType['keyExtractor'] = (item, index) => `${index}${item.text}`
