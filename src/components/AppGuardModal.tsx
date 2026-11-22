@@ -327,24 +327,40 @@ export const AppGuardModal: React.FC = () => {
   }
 
   // 🔄 音源版本轮询：每 24h 一次轻请求；版本变了 → 强制重新激活拉取最新音源
+  // 🛠️ 关键：只有成功请求到版本才写 24h；网络失败/超时只等 5 分钟重试，
+  //    避免一次抖动导致用户 24h 内都收不到换源通知（让泄源过期的关键链路）
+  const RETRY_INTERVAL = 5 * 60 * 1000
   const checkSourceVersion = async (token: string): Promise<void> => {
     try {
       const nextCheckAt = await AsyncStorage.getItem(SOURCE_VER_CHECK_KEY)
       if (nextCheckAt && Date.now() < Number(nextCheckAt)) return
 
       const res = await fetchWithTimeout(`${AUTH_HOSTS[0]}${SOURCE_VER_PATH}`)
+      if (res.status !== 200) {
+        // 服务端异常 → 5 分钟后重试，不拖到 24h
+        await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + RETRY_INTERVAL))
+        return
+      }
+      let j: { version?: unknown }
+      try {
+        j = JSON.parse(await res.text())
+      } catch {
+        await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + RETRY_INTERVAL))
+        return
+      }
+      // 成功拿到版本 → 恢复正常 24h 检查间隔
       await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL))
-      if (res.status !== 200) return
-      const j = JSON.parse(await res.text())
       const serverVer = typeof j?.version === 'string' ? j.version : ''
       const storedVer = await AsyncStorage.getItem(SOURCE_VER_KEY)
       if (serverVer && serverVer !== storedVer) {
         console.log(`音源版本变化(${storedVer ?? '无'} → ${serverVer})，触发重新激活`)
         await verifyAndActivate(token, false)
+        // verifyAndActivate 成功时 saveAuthCache 会写入新 SOURCE_VER_KEY；
+        // 失败则旧版本值保留，下次检查仍会发现版本不同再试
       }
     } catch (e) {
-      // 网络/解析失败 → 静默继续用本地缓存（下次再试）
-      try { await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + SOURCE_VER_CHECK_INTERVAL)) } catch (e2) { /* 忽略 */ }
+      // 网络/超时/解析失败 → 5 分钟后重试（而非 24h），确保换源通知能尽快送达
+      try { await AsyncStorage.setItem(SOURCE_VER_CHECK_KEY, String(Date.now() + RETRY_INTERVAL)) } catch (e2) { /* 忽略 */ }
     }
   }
 
