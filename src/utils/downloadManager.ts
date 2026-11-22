@@ -1,5 +1,23 @@
 import RNFS from 'react-native-fs'
 import { PermissionsAndroid, Platform, Alert } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+// 📁 用户自定义的下载文件夹（持久化保存）
+export const DOWNLOAD_DIR_KEY = '@lx_download_dir'
+
+export const getDownloadDir = async (): Promise<string> => {
+  try {
+    const saved = await AsyncStorage.getItem(DOWNLOAD_DIR_KEY)
+    if (saved) return saved
+  } catch (e) {
+    console.log('读取下载目录失败:', e)
+  }
+  return RNFS.DownloadDirectoryPath
+}
+
+export const setDownloadDir = async (dir: string): Promise<void> => {
+  await AsyncStorage.setItem(DOWNLOAD_DIR_KEY, dir)
+}
 
 const requestStoragePermission = async (): Promise<boolean> => {
   if (Platform.OS === 'android') {
@@ -52,8 +70,8 @@ export const handleDownloadSong = async (songUrl: string, songName: string, sing
   const ext = quality === 'flac' ? 'flac' : 'mp3'
   const fileName = `${sanitizedArtist} - ${sanitizedTitle}.${ext}`
 
-  // 🛠️ 部分机型 Download 目录不存在，先确保父目录存在，避免 ENOENT
-  let downloadDir = RNFS.DownloadDirectoryPath
+  // 🛠️ 优先用用户指定的文件夹；否则用默认 Download 目录。先确保目录存在，避免 ENOENT
+  let downloadDir = await getDownloadDir()
   try {
     if (!await RNFS.exists(downloadDir)) await RNFS.mkdir(downloadDir)
   } catch (e) {
@@ -86,7 +104,7 @@ export const handleDownloadSong = async (songUrl: string, songName: string, sing
     const result = await ret.promise
 
     if (result.statusCode === 200) {
-      Alert.alert('下载成功 🎉', `文件已安全保存至存储目录:\nDownload/${fileName}`)
+      Alert.alert('下载成功 🎉', `文件已保存至:\n${downloadDest}`)
     } else {
       Alert.alert('下载失败', `服务器响应码: ${result.statusCode}`)
     }

@@ -1,11 +1,12 @@
-import { useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useState, useCallback, useEffect } from 'react'
 import { View, TouchableOpacity, ActivityIndicator } from 'react-native'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
 import Text from '@/components/common/Text'
+import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { getMusicUrl } from '@/core/music'
-import { handleDownloadSong } from '@/utils/downloadManager'
+import { handleDownloadSong, getDownloadDir, setDownloadDir } from '@/utils/downloadManager'
 
 // 🎵 音质从高到低排列，ext 决定下载文件的后缀（无损用 .flac，有损用 .mp3）
 const QUALITY_LIST: Array<{ id: LX.Quality, label: string, ext: 'mp3' | 'flac' }> = [
@@ -23,18 +24,40 @@ export interface MusicDownloadModalType {
 export default forwardRef<MusicDownloadModalType, {}>((props, ref) => {
   const theme = useTheme()
   const dialogRef = useRef<DialogType>(null)
+  const choosePathRef = useRef<ChoosePathType>(null)
   const [musicInfo, setMusicInfo] = useState<LX.Music.MusicInfo | null>(null)
   const [downloadingQuality, setDownloadingQuality] = useState<LX.Quality | null>(null)
+  const [downloadDir, setDownloadDirState] = useState<string>('')
+  const [showChoosePath, setShowChoosePath] = useState(false)
+
+  // 读取已保存的下载文件夹
+  useEffect(() => {
+    void getDownloadDir().then(setDownloadDirState)
+  }, [])
 
   useImperativeHandle(ref, () => ({
     show(info) {
       setMusicInfo(info)
       setDownloadingQuality(null)
+      void getDownloadDir().then(setDownloadDirState)
       requestAnimationFrame(() => {
         dialogRef.current?.setVisible(true)
       })
     },
   }))
+
+  // 打开文件夹选择器（只选目录）
+  const handleChooseDir = useCallback(() => {
+    setShowChoosePath(true)
+    requestAnimationFrame(() => {
+      choosePathRef.current?.show({ title: '选择下载文件夹', dirOnly: true })
+    })
+  }, [])
+  const handleDirConfirm = useCallback((path: string) => {
+    setShowChoosePath(false)
+    if (!path) return
+    void setDownloadDir(path).then(() => setDownloadDirState(path))
+  }, [])
 
   // 仅列出该歌曲实际提供的音质；本地歌曲不适用
   const availableQualities = useCallback(() => {
@@ -61,14 +84,26 @@ export default forwardRef<MusicDownloadModalType, {}>((props, ref) => {
 
   const list = availableQualities()
 
+  const displayDir = downloadDir
+    ? downloadDir.replace(/^.*[\/\\]/, '') || downloadDir
+    : '默认下载目录'
+
   return (
-    <Dialog ref={dialogRef} title="下载歌曲">
-      <View style={styles.container}>
-        <Text style={styles.songName} size={15} color={theme['c-font']} numberOfLines={1}>
-          {musicInfo?.name} - {musicInfo?.singer}
-        </Text>
-        <Text style={styles.tip} size={12} color={theme['c-font-label']}>请选择要下载的音质（从高到低）</Text>
-        <View style={styles.list}>
+    <>
+      <Dialog ref={dialogRef} title="下载歌曲">
+        <View style={styles.container}>
+          <Text style={styles.songName} size={15} color={theme['c-font']} numberOfLines={1}>
+            {musicInfo?.name} - {musicInfo?.singer}
+          </Text>
+          <TouchableOpacity style={styles.dirRow} activeOpacity={0.7} onPress={handleChooseDir}>
+            <View style={styles.dirInfo}>
+              <Text size={13} color={theme['c-font-label']}>保存位置</Text>
+              <Text size={13} color={theme['c-font']} numberOfLines={1}>{displayDir}</Text>
+            </View>
+            <Text size={13} color={theme['c-primary']}>更改 ›</Text>
+          </TouchableOpacity>
+          <Text style={styles.tip} size={12} color={theme['c-font-label']}>请选择要下载的音质（从高到低）</Text>
+          <View style={styles.list}>
           {
             list.length
               ? list.map(item => {
@@ -98,9 +133,15 @@ export default forwardRef<MusicDownloadModalType, {}>((props, ref) => {
               })
               : <Text style={styles.empty} size={13} color={theme['c-font-label']}>该歌曲暂无可下载的音质</Text>
           }
+          </View>
         </View>
-      </View>
-    </Dialog>
+      </Dialog>
+      {
+        showChoosePath
+          ? <ChoosePath ref={choosePathRef} onConfirm={handleDirConfirm} />
+          : null
+      }
+    </>
   )
 })
 
@@ -110,7 +151,21 @@ const styles = createStyle({
     paddingVertical: 12,
   },
   songName: {
-    marginBottom: 2,
+    marginBottom: 8,
+  },
+  dirRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(127,127,127,0.08)',
+  },
+  dirInfo: {
+    flexShrink: 1,
+    gap: 2,
   },
   tip: {
     marginBottom: 10,
