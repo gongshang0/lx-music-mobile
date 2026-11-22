@@ -13,7 +13,6 @@ import {
   Platform,
   Linking,
 } from 'react-native'
-import LinearGradient from 'react-native-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
 import { updateSetting } from '@/core/common'
@@ -477,17 +476,11 @@ export const AppGuardModal: React.FC = () => {
 
   if (checking) {
     return (
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.25, y: 1 }}
-        locations={[0, 0.62, 1]}
-        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
-        style={styles.centerScreen}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.centerScreen, styles.bgPrimary]}>
+        <StatusBar barStyle="light-content" backgroundColor="#267DFF" translucent />
         <ActivityIndicator size="large" color="#FFFFFF" />
         <Text style={styles.loadingText}>正核验设备激活授权...</Text>
-      </LinearGradient>
+      </View>
     )
   }
 
@@ -503,27 +496,16 @@ export const AppGuardModal: React.FC = () => {
         // 🔒 阻止物理返回键关闭门禁
       }}
     >
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.25, y: 1 }}
-        locations={[0, 0.62, 1]}
-        colors={['#1B4A8F', '#267DFF', '#5CA9FF']}
-        style={styles.maskContainer}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.maskContainer, styles.bgPrimary]}>
+        <StatusBar barStyle="light-content" backgroundColor="#267DFF" translucent />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
         >
           <View style={styles.card}>
-            <LinearGradient
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              colors={['#267DFF', '#5CA9FF']}
-              style={styles.iconBadge}
-            >
+            <View style={[styles.iconBadge, styles.bgPrimary]}>
               <Text style={styles.badgeText}>⚡</Text>
-            </LinearGradient>
+            </View>
 
             <Text style={styles.title}>设备激活中心</Text>
             <Text style={styles.subtitle}>请输入有效授权码解锁完整音源权限</Text>
@@ -547,18 +529,13 @@ export const AppGuardModal: React.FC = () => {
               disabled={verifying}
               activeOpacity={0.85}
             >
-              <LinearGradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                colors={['#267DFF', '#5CA9FF']}
-                style={styles.button}
-              >
+              <View style={[styles.button, styles.bgPrimary]}>
                 {verifying ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <Text style={styles.buttonText}>验证激活并进入</Text>
                 )}
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -572,7 +549,7 @@ export const AppGuardModal: React.FC = () => {
 
           <Text style={styles.footerTip}>Cloudflare 高速鉴权网关保护中</Text>
         </KeyboardAvoidingView>
-      </LinearGradient>
+      </View>
     </Modal>
   )
 }
@@ -588,6 +565,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  bgPrimary: {
+    backgroundColor: '#267DFF',
   },
   loadingText: { marginTop: 16, fontSize: 14, color: 'rgba(255, 255, 255, 0.8)' },
   maskContainer: {
