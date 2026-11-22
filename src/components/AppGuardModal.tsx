@@ -16,6 +16,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { importUserApi, setUserApi, removeUserApi } from '@/core/userApi'
+import { updateSetting } from '@/core/common'
 import { state as userApiState } from '@/store/userApi'
 import { compareVer } from '@/utils'
 import { aesDecrypt } from '@/utils/nativeModules/crypto'
@@ -261,6 +262,9 @@ export const AppGuardModal: React.FC = () => {
       // 🎯 默认音源 = 线路1（酷我单版，稳定）
       try {
         await setUserApi(line1Id)
+        // 同步设置页勾选状态，避免用户看着"没选中"还要手动确认
+        updateSetting({ 'common.apiSource': line1Id })
+        requestAnimationFrame(() => { global.state_event.apiSourceUpdated(line1Id) })
       } catch (e) {
         console.error('默认音源设置失败(忽略):', e)
       }
@@ -299,6 +303,8 @@ export const AppGuardModal: React.FC = () => {
       }
       try {
         await setUserApi(line2Id)
+        updateSetting({ 'common.apiSource': line2Id })
+        requestAnimationFrame(() => { global.state_event.apiSourceUpdated(line2Id) })
       } catch (e) {
         console.error('默认音源设置失败(忽略):', e)
       }
