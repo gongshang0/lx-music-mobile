@@ -23,14 +23,17 @@ const initReadOptions = {}
 
 interface ChoosePathProps {
   onConfirm: (path: string) => void
+  onHide?: () => void
 }
 
 export interface ChoosePathType {
   show: (options: ReadOptions) => void
+  hide: () => void
 }
 
 export default forwardRef<ChoosePathType, ChoosePathProps>(({
   onConfirm = () => {},
+  onHide = () => {},
 }: ChoosePathProps, ref) => {
   const t = useI18n()
   const listRef = useRef<ListType>(null)
@@ -51,6 +54,9 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
   }
 
   useImperativeHandle(ref, () => ({
+    hide() {
+      listRef.current?.hide()
+    },
     show(options) {
       if (!settingState.setting['common.useSystemFileSelector'] || options.dirOnly) {
         // if (options.isPersist) {
@@ -110,12 +116,13 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
   }
   const onPathConfirm = (path: string) => {
     listRef.current?.hide()
+    onHide()
     onConfirm(path)
   }
 
   return (
     <>
-      <List ref={listRef} onConfirm={onPathConfirm} />
+      <List ref={listRef} onConfirm={onPathConfirm} onHide={onHide} />
       <ConfirmAlert
         ref={confirmAlertRef}
         onCancel={handleTipsCancel}

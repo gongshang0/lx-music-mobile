@@ -1,9 +1,9 @@
 import { useRef, useImperativeHandle, forwardRef, useState, useCallback, useEffect } from 'react'
-import { View, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
 import Text from '@/components/common/Text'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
-import { createStyle } from '@/utils/tools'
+import { createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { getMusicUrl } from '@/core/music'
 import { handleDownloadSong, getDownloadDir, setDownloadDir } from '@/utils/downloadManager'
@@ -72,11 +72,18 @@ export default forwardRef<MusicDownloadModalType, {}>((props, ref) => {
     if (!info || downloadingQuality) return
     setDownloadingQuality(item.id)
     try {
-      const url = await getMusicUrl({ musicInfo: info, quality: item.id })
-      await handleDownloadSong(url, info.name, info.singer, item.ext)
+      toast(`正在解析「${item.label}」链接…`, 'short')
+      const url = await getMusicUrl({ musicInfo: info, quality: item.id, isRefresh: false })
+      if (!url) {
+        Alert.alert('下载失败', '未能解析出有效播放链接，请检查音源后重试')
+        return
+      }
+      toast('链接解析成功，开始下载', 'short')
       dialogRef.current?.setVisible(false)
-    } catch (err) {
+      await handleDownloadSong(url, info.name, info.singer, item.ext)
+    } catch (err: any) {
       console.error('解析下载链接失败:', err)
+      Alert.alert('解析失败', err?.message || '解析播放链接时出错，请稍后重试')
     } finally {
       setDownloadingQuality(null)
     }
@@ -138,7 +145,7 @@ export default forwardRef<MusicDownloadModalType, {}>((props, ref) => {
       </Dialog>
       {
         showChoosePath
-          ? <ChoosePath ref={choosePathRef} onConfirm={handleDirConfirm} />
+          ? <ChoosePath ref={choosePathRef} onConfirm={handleDirConfirm} onHide={() => setShowChoosePath(false)} />
           : null
       }
     </>
