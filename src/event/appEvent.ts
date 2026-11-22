@@ -201,6 +201,11 @@ export class AppEvent extends Event {
   selectSyncMode(mode: LX.Sync.ModeType) {
     this.emit('selectSyncMode', mode)
   }
+
+  // 🔑 请求清除授权并重新验证卡密（设置页/激活弹窗触发，门禁组件监听后重新弹出）
+  authResetRequested() {
+    this.emit('authResetRequested')
+  }
 }
 
 

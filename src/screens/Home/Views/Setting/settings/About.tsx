@@ -4,12 +4,13 @@ import { View, TouchableOpacity } from 'react-native'
 import Section from '../components/Section'
 // import Button from './components/Button'
 
-import { createStyle } from '@/utils/tools'
+import { createStyle, confirmDialog, toast } from '@/utils/tools'
 // import { showPactModal } from '@/navigation'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { showPactModal } from '@/core/common'
+import { clearAuth } from '@/components/AppGuardModal'
 
 // const qqGroupUrl = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3Du1zyxek8roQAwic44nOkBXtG9CfbAxFw'
 // const qqGroupUrl2 = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3D-l4kNZ2bPQAuvfCQFFhl1UoibvF5wcrQ'
@@ -22,6 +23,19 @@ export default memo(() => {
   // 🔒 私有分发版：移除官方开源地址/下载/FAQ 等外链（属于原项目，与本分发版无关）
   const openPactModal = () => {
     showPactModal()
+  }
+
+  // 🔑 重新验证卡密：确认后清除授权并弹出激活页
+  const handleResetAuth = () => {
+    void confirmDialog({
+      title: '重新验证卡密',
+      message: '这将清除本机已保存的授权，返回激活页重新输入卡密。确定继续吗？',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    }).then(confirmed => {
+      if (!confirmed) return
+      void clearAuth().then(() => toast('已清除授权，请重新输入卡密'))
+    })
   }
 
   const textLinkStyle = {
@@ -43,6 +57,9 @@ export default memo(() => {
       </View>
       <View style={styles.part}>
         <TouchableOpacity onPress={openPactModal}><Text style={textLinkStyle} color={theme['c-primary-font']}>许可协议</Text></TouchableOpacity>
+      </View>
+      <View style={styles.part}>
+        <TouchableOpacity onPress={handleResetAuth}><Text style={textLinkStyle} color={theme['c-primary-font']}>重新验证卡密 / 清除授权</Text></TouchableOpacity>
       </View>
     </Section>
   )
