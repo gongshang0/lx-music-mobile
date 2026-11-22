@@ -25,7 +25,7 @@ const requestStoragePermission = async (): Promise<boolean> => {
   return true
 }
 
-export const handleDownloadSong = async (songUrl: string, songName: string, singer: string) => {
+export const handleDownloadSong = async (songUrl: string, songName: string, singer: string, quality?: 'mp3' | 'flac') => {
   // 🔒 1. 卡密下载权限强拦截
   if (global.lx?.userPermissions && !global.lx.userPermissions.allowDownload) {
     Alert.alert(
@@ -49,9 +49,18 @@ export const handleDownloadSong = async (songUrl: string, songName: string, sing
   // 过滤文件名特殊字符
   const sanitizedTitle = songName.replace(/[/\\?%*:|"<>]/g, '_')
   const sanitizedArtist = singer.replace(/[/\\?%*:|"<>]/g, '_')
-  const fileName = `${sanitizedArtist} - ${sanitizedTitle}.mp3`
-  
-  const downloadDest = `${RNFS.DownloadDirectoryPath}/${fileName}`
+  const ext = quality === 'flac' ? 'flac' : 'mp3'
+  const fileName = `${sanitizedArtist} - ${sanitizedTitle}.${ext}`
+
+  // 🛠️ 部分机型 Download 目录不存在，先确保父目录存在，避免 ENOENT
+  let downloadDir = RNFS.DownloadDirectoryPath
+  try {
+    if (!await RNFS.exists(downloadDir)) await RNFS.mkdir(downloadDir)
+  } catch (e) {
+    console.log('创建下载目录失败，回退到文档目录:', e)
+    downloadDir = RNFS.DocumentDirectoryPath
+  }
+  const downloadDest = `${downloadDir}/${fileName}`
 
   Alert.alert('开始下载', `正在为您下载: ${songName}`)
 
