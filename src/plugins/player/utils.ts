@@ -248,6 +248,10 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
  */
 // export const playState = callback => TrackPlayer.addEventListener('playback-state', callback)
 
+// 🎵 状态栏小图标: 原生侧按 uri 读取 drawable 名, 指向应用 logo(音符+下载箭头)的白色剪影
+// 对应资源 android/app/src/main/res/drawable/notification_icon.xml
+const notificationIcon = { uri: 'notification_icon' } as any
+
 export const updateOptions = async(options = {
   // Whether the player should stop running when the app is closed on Android
   // stopWithApp: true,
@@ -286,7 +290,7 @@ export const updateOptions = async(options = {
   // stopIcon: require('./stop-icon.png'),
   // previousIcon: require('./previous-icon.png'),
   // nextIcon: require('./next-icon.png'),
-  // icon: notificationIcon, // The notification icon
+  icon: notificationIcon, // 🎵 状态栏小图标 = 应用 logo 白色剪影(类似微信/QQ)
 }) => {
   return TrackPlayer.updateOptions(options)
 }
