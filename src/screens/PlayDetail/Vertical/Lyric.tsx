@@ -10,6 +10,7 @@ import { AnimatedColorText } from '@/components/common/Text'
 import { KaraokeText, useKaraokeProgress } from '@/components/common/KaraokeText'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
+import { getPosition } from '@/plugins/player'
 import { scrollTo } from '@/utils/scroll'
 import PlayLine, { type PlayLineType } from '../components/PlayLine'
 // import { screenkeepAwake } from '@/utils/nativeModules/utils'
@@ -155,34 +156,47 @@ export default () => {
   // }, [playMusicInfo])
 
   // const imgWidth = useMemo(() => layout.width * 0.75, [layout.width])
+
+  // 🎬 计算某行居中时对应的滚动 offset（行顶 + 半行高 - 视口 42%）
+  const getLineOffset = useCallback((index: number): number | null => {
+    if (index < 0 || !scrollInfoRef.current) return null
+    let offset = listLayoutInfoRef.current.spaceHeight
+    for (let i = 0; i < index; i++) offset += listLayoutInfoRef.current.lineHeights[i] ?? 0
+    offset += (listLayoutInfoRef.current.lineHeights[index] ?? 0) / 2
+    return offset - scrollInfoRef.current.layoutMeasurement.height * 0.42
+  }, [])
+
+  // 🎬 连续平滑滚动：把 offset 直接设为目标值(跳过 RN 动画)，由外部按帧高频调用驱动
+  const applySmoothOffset = useCallback((index: number, ratio: number) => {
+    if (!flatListRef.current || isPauseScrollRef.current) return
+    const to = getLineOffset(index)
+    if (to == null) return
+    const from = index > 0
+      ? getLineOffset(index - 1)
+      : to - (listLayoutInfoRef.current.lineHeights[index] ?? 0) // 首行从更上方平滑移入
+    if (from == null) return
+    // ratio=0 时停在上一行位置，=1 时停在当前行位置；在行间连续插值
+    const offset = from + (to - from) * Math.min(1, Math.max(0, ratio))
+    if (offset < 0) return
+    try {
+      flatListRef.current.scrollToOffset({ offset, animated: false })
+    } catch {}
+  }, [getLineOffset])
+
+  // 🎬 定位到活动行（用于换歌/拖动结束后/跳转等“非连续”场景）
   const handleScrollToActive = (index = lineRef.current.line) => {
     if (index < 0) return
-    if (flatListRef.current) {
-      // console.log('handleScrollToActive', index)
-      if (scrollInfoRef.current && lineRef.current.line - lineRef.current.prevLine == 1) {
-        let offset = listLayoutInfoRef.current.spaceHeight
-        for (let line = 0; line < index; line++) {
-          offset += listLayoutInfoRef.current.lineHeights[line]
-        }
-        offset += (listLayoutInfoRef.current.lineHeights[line] ?? 0) / 2
-        try {
-          scrollCancelRef.current = scrollTo(flatListRef.current, scrollInfoRef.current, offset - scrollInfoRef.current.layoutMeasurement.height * 0.42, 600, () => {
-            scrollCancelRef.current = null
-          })
-        } catch {}
-      } else {
-        if (scrollCancelRef.current) {
-          scrollCancelRef.current()
+    if (scrollCancelRef.current) {
+      scrollCancelRef.current()
+      scrollCancelRef.current = null
+    }
+    const target = getLineOffset(index)
+    if (target != null && scrollInfoRef.current) {
+      try {
+        scrollCancelRef.current = scrollTo(flatListRef.current!, scrollInfoRef.current, target, 300, () => {
           scrollCancelRef.current = null
-        }
-        try {
-          flatListRef.current.scrollToIndex({
-            index,
-            animated: true,
-            viewPosition: 0.42,
-          })
-        } catch {}
-      }
+        })
+      } catch {}
     }
   }
 
@@ -264,21 +278,65 @@ export default () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lyricLines])
 
+  // 🎬 连续平滑滚动驱动：按播放进度在当前行/下一行之间连续插值，歌词随进度匀速上移
+  useEffect(() => {
+    const activeLine = lineRef.current.line
+    if (activeLine < 0 || !lyricLines.length) return
+    let disposed = false
+    const sync = { pos: 0, at: 0 }
+
+    const syncPosition = async() => {
+      try {
+        const position = await getPosition()
+        if (!disposed && typeof position === 'number') {
+          sync.pos = position * 1000
+          sync.at = Date.now()
+        }
+      } catch {}
+    }
+
+    const tick = () => {
+      if (disposed) return
+      if (!playerState.isPlay) {
+        sync.at = 0 // 暂停作废插值基准，恢复后等重新同步，避免进度突变导致跳行
+        return
+      }
+      if (!sync.at) return
+      const idx = lineRef.current.line
+      if (idx < 0 || idx >= lyricLines.length) return
+      const posMs = sync.pos + (Date.now() - sync.at) * (playerState.playRate || 1)
+      const cur = lyricLines[idx]
+      const next = lyricLines[idx + 1]
+      const start = cur.time
+      const end = next && next.time > start ? next.time : start + 8000
+      // 行内进度 0→1，驱动 offset 从上一行平滑走到当前行
+      const ratio = Math.min(1, Math.max(0, (posMs - start) / Math.max(1, end - start)))
+      applySmoothOffset(idx, ratio)
+    }
+
+    void syncPosition()
+    const tickTimer = setInterval(tick, 50)
+    const syncTimer = setInterval(syncPosition, 1000)
+    const rmPlayListener = global.state_event.on('playStateChanged', (isPlay: boolean) => {
+      if (isPlay) void syncPosition() // 恢复播放时立即重新同步，滚动无缝接续
+    })
+    return () => {
+      disposed = true
+      clearInterval(tickTimer)
+      clearInterval(syncTimer)
+      rmPlayListener()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line, lyricLines, applySmoothOffset])
+
   useEffect(() => {
     if (line < 0) return
     lineRef.current.prevLine = lineRef.current.line
     lineRef.current.line = line
     if (!flatListRef.current || isPauseScrollRef.current) return
 
-    if (line - lineRef.current.prevLine != 1) {
-      handleScrollToActive()
-      return
-    }
-
-    delayScrollTimeout.current = setTimeout(() => {
-      delayScrollTimeout.current = null
-      handleScrollToActive()
-    }, 600)
+    // 跳转(非相邻行)时快速定位到目标行；相邻行交给上面的连续滚动驱动平滑过渡
+    if (Math.abs(line - lineRef.current.prevLine) != 1) handleScrollToActive()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line])
 
