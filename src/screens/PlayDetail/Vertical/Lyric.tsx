@@ -317,14 +317,15 @@ export default () => {
     void syncPosition()
     const tickTimer = setInterval(tick, 50)
     const syncTimer = setInterval(syncPosition, 1000)
-    const rmPlayListener = global.state_event.on('playStateChanged', (isPlay: boolean) => {
+    const onPlayStateChange = (isPlay: boolean) => {
       if (isPlay) void syncPosition() // 恢复播放时立即重新同步，滚动无缝接续
-    })
+    }
+    global.state_event.on('playStateChanged', onPlayStateChange)
     return () => {
       disposed = true
       clearInterval(tickTimer)
       clearInterval(syncTimer)
-      rmPlayListener()
+      global.state_event.off('playStateChanged', onPlayStateChange)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line, lyricLines, applySmoothOffset])
