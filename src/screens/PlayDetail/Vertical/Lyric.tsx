@@ -10,7 +10,6 @@ import { AnimatedColorText } from '@/components/common/Text'
 import { KaraokeText, useKaraokeProgress } from '@/components/common/KaraokeText'
 import { setSpText } from '@/utils/pixelRatio'
 import playerState from '@/store/player/state'
-import { getPosition } from '@/plugins/player'
 import { scrollTo } from '@/utils/scroll'
 import PlayLine, { type PlayLineType } from '../components/PlayLine'
 // import { screenkeepAwake } from '@/utils/nativeModules/utils'
@@ -166,30 +165,11 @@ export default () => {
     return offset - scrollInfoRef.current.layoutMeasurement.height * 0.42
   }, [])
 
-  // 🎬 连续平滑滚动：把 offset 直接设为目标值(跳过 RN 动画)，由外部按帧高频调用驱动
-  const applySmoothOffset = useCallback((index: number, ratio: number) => {
-    if (!flatListRef.current || isPauseScrollRef.current) return
-    const to = getLineOffset(index)
-    if (to == null) return
-    const from = index > 0
-      ? getLineOffset(index - 1)
-      : to - (listLayoutInfoRef.current.lineHeights[index] ?? 0) // 首行从更上方平滑移入
-    if (from == null) return
-    // ratio=0 时停在上一行位置，=1 时停在当前行位置；在行间连续插值
-    const offset = from + (to - from) * Math.min(1, Math.max(0, ratio))
-    if (offset < 0) return
-    try {
-      flatListRef.current.scrollToOffset({ offset, animated: false })
-    } catch {}
-  }, [getLineOffset])
-
-  // 🎬 定位到活动行（用于换歌/拖动结束后/跳转等“非连续”场景）
+  // 🎬 定位到活动行（换行/换歌/拖动结束后/跳转）
+  // 注意：这里不主动 cancel 上一次滚动 —— 让 scroll.ts 的 lx_scrollNextParams 无缝衔接生效
+  // （桌面版同样只覆盖 cancel 引用、不调用旧的 cancel，连续换行才顺滑）
   const handleScrollToActive = (index = lineRef.current.line) => {
     if (index < 0) return
-    if (scrollCancelRef.current) {
-      scrollCancelRef.current()
-      scrollCancelRef.current = null
-    }
     const target = getLineOffset(index)
     if (target != null && scrollInfoRef.current) {
       try {
@@ -278,66 +258,14 @@ export default () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lyricLines])
 
-  // 🎬 连续平滑滚动驱动：按播放进度在当前行/下一行之间连续插值，歌词随进度匀速上移
-  useEffect(() => {
-    const activeLine = lineRef.current.line
-    if (activeLine < 0 || !lyricLines.length) return
-    let disposed = false
-    const sync = { pos: 0, at: 0 }
-
-    const syncPosition = async() => {
-      try {
-        const position = await getPosition()
-        if (!disposed && typeof position === 'number') {
-          sync.pos = position * 1000
-          sync.at = Date.now()
-        }
-      } catch {}
-    }
-
-    const tick = () => {
-      if (disposed) return
-      if (!playerState.isPlay) {
-        sync.at = 0 // 暂停作废插值基准，恢复后等重新同步，避免进度突变导致跳行
-        return
-      }
-      if (!sync.at) return
-      const idx = lineRef.current.line
-      if (idx < 0 || idx >= lyricLines.length) return
-      const posMs = sync.pos + (Date.now() - sync.at) * (playerState.playRate || 1)
-      const cur = lyricLines[idx]
-      const next = lyricLines[idx + 1]
-      const start = cur.time
-      const end = next && next.time > start ? next.time : start + 8000
-      // 行内进度 0→1，驱动 offset 从上一行平滑走到当前行
-      const ratio = Math.min(1, Math.max(0, (posMs - start) / Math.max(1, end - start)))
-      applySmoothOffset(idx, ratio)
-    }
-
-    void syncPosition()
-    const tickTimer = setInterval(tick, 50)
-    const syncTimer = setInterval(syncPosition, 1000)
-    const onPlayStateChange = (isPlay: boolean) => {
-      if (isPlay) void syncPosition() // 恢复播放时立即重新同步，滚动无缝接续
-    }
-    global.state_event.on('playStateChanged', onPlayStateChange)
-    return () => {
-      disposed = true
-      clearInterval(tickTimer)
-      clearInterval(syncTimer)
-      global.state_event.off('playStateChanged', onPlayStateChange)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line, lyricLines, applySmoothOffset])
-
+  // 🎬 换行即滚动（照搬桌面版 LX Music）：300ms easeInOutQuad 缓动 + scroll.ts 的无缝衔接
+  //    不再逐帧 setOffset、也不再延迟 600ms —— 换行立刻开始平滑滚动，连续换行自动衔接
   useEffect(() => {
     if (line < 0) return
     lineRef.current.prevLine = lineRef.current.line
     lineRef.current.line = line
     if (!flatListRef.current || isPauseScrollRef.current) return
-
-    // 跳转(非相邻行)时快速定位到目标行；相邻行交给上面的连续滚动驱动平滑过渡
-    if (Math.abs(line - lineRef.current.prevLine) != 1) handleScrollToActive()
+    handleScrollToActive()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line])
 
